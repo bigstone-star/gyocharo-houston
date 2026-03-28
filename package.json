@@ -1,6 +1,6 @@
 {
   "name": "kyocharo-houston",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,6 +12,9 @@
     "react": "^18",
     "react-dom": "^18",
     "@supabase/supabase-js": "^2.39.0",
+    "@supabase/ssr": "^0.3.0",
+    "stripe": "^14.14.0",
+    "@stripe/stripe-js": "^3.0.0",
     "lucide-react": "^0.363.0",
     "clsx": "^2.1.0"
   },
