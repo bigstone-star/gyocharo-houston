@@ -1,27 +1,8 @@
-import Stripe from 'stripe'
+// Stripe는 설정 후 활성화 예정
+// npm install stripe 후 아래 주석 해제
+export const stripe = null as any;
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-})
-
-export async function createCheckoutSession({
-  businessId, userId, tier, priceId, customerEmail,
-}: {
-  businessId: string; userId: string; tier: string; priceId: string; customerEmail: string;
-}) {
-  const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'subscription',
-    customer_email: customerEmail,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${baseUrl}/dashboard?success=true&tier=${tier}`,
-    cancel_url: `${baseUrl}/pricing?cancelled=true`,
-    subscription_data: {
-      trial_period_days: 14,
-      metadata: { businessId, userId, tier },
-    },
-    metadata: { businessId, userId, tier },
-  })
-  return session
+export async function createCheckoutSession(opts: any) {
+  console.log('Stripe not configured yet', opts);
+  return { url: '/pricing' };
 }
