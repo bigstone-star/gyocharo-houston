@@ -1,13 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-const FB = ['식당·카페','마트·식품','의료','치과','법률','자동차','미용','교육','금융·보험','커뮤니티','부동산','세탁소','한의원','여행·관광','기타']
+const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 export default function RegisterPage() {
   const [user,setUser]=useState<any>(null)
   const [step,setStep]=useState(1)
   const [loading,setLoading]=useState(false)
-  const [cats,setCats]=useState<string[]>(FB)
+    const [cats,setCats]=useState<string[]>([])
   const [form,setForm]=useState({name_kr:'',name_en:'',category_main:'',category_sub:'',address:'',phone:'',website:'',description_kr:''})
   useEffect(()=>{
     sb.auth.getUser().then(({data})=>{if(!data.user)window.location.href='/auth/login';else setUser(data.user)})
