@@ -94,12 +94,13 @@ sb.from('banners')
 
     if (error || !data) return
 
-    const bottom = data.filter(
-      (b: any) =>
-        b.position === 'home_bottom' ||
-        b.position === 'bottom' ||
-        b.position === 'footer'
-    )
+const bottom = data.filter(
+  (b: any) =>
+    b.position === 'home_top' ||
+    b.position === 'home_bottom' ||
+    b.position === 'bottom' ||
+    b.position === 'footer'
+)
 
     console.log('bottom banners:', bottom)
     setBottomBanners(bottom)
