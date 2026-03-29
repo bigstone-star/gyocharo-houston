@@ -33,6 +33,10 @@ type Category = {
 
 export default function Home() {
   const [biz, setBiz] = useState<any[]>([])
+  const [siteName, setSiteName] = useState('교차로 휴스턴')
+  const [headerLogoUrl, setHeaderLogoUrl] = useState('')
+  const [headerLogoWidth, setHeaderLogoWidth] = useState(140)
+  const [showTextLogo, setShowTextLogo] = useState(false)
   const [loading, setLoading] = useState(true)
   const [cat, setCat] = useState('전체')
   const [search, setSearch] = useState('')
@@ -54,6 +58,18 @@ export default function Home() {
   }
 
   useEffect(() => {
+  sb.from('site_settings')
+  .select('site_name, header_logo_url, header_logo_width, show_text_logo')
+  .limit(1)
+  .maybeSingle()
+  .then(({ data, error }) => {
+    if (error || !data) return
+    setSiteName(data.site_name || '교차로 휴스턴')
+    setHeaderLogoUrl(data.header_logo_url || '')
+    setHeaderLogoWidth(data.header_logo_width || 140)
+    setShowTextLogo(!!data.show_text_logo)
+  })
+    
     try {
       setFavs(JSON.parse(localStorage.getItem('gj_favs') || '[]'))
     } catch {}
@@ -188,8 +204,18 @@ const bottom = data.filter(
       <header className="bg-[#1a1a2e] sticky top-0 z-40 shadow-xl">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div>
-            <h1 className="text-[20px] font-extrabold text-white">
-              <span className="text-amber-400">교차로</span> 휴스턴
+            {headerLogoUrl && !showTextLogo ? (
+  <img
+    src={headerLogoUrl}
+    alt={siteName}
+    className="h-8 w-auto"
+    style={{ maxWidth: `${headerLogoWidth}px` }}
+  />
+) : (
+  <h1 className="text-[20px] font-extrabold text-white">
+    <span className="text-amber-400">교차로</span> 휴스턴
+  </h1>
+)}
             </h1>
             <p className="text-[11px] text-white/40 mt-0.5">
               Houston, TX · 한인 비즈니스 디렉토리
