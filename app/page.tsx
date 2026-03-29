@@ -58,18 +58,18 @@ export default function Home() {
   }
 
   useEffect(() => {
-  sb.from('site_settings')
-  .select('site_name, header_logo_url, header_logo_width, show_text_logo')
-  .limit(1)
-  .maybeSingle()
-  .then(({ data, error }) => {
-    if (error || !data) return
-    setSiteName(data.site_name || '교차로 휴스턴')
-    setHeaderLogoUrl(data.header_logo_url || '')
-    setHeaderLogoWidth(data.header_logo_width || 140)
-    setShowTextLogo(!!data.show_text_logo)
-  })
-    
+    sb.from('site_settings')
+      .select('site_name, header_logo_url, header_logo_width, show_text_logo')
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error || !data) return
+        setSiteName(data.site_name || '교차로 휴스턴')
+        setHeaderLogoUrl(data.header_logo_url || '')
+        setHeaderLogoWidth(data.header_logo_width || 140)
+        setShowTextLogo(!!data.show_text_logo)
+      })
+
     try {
       setFavs(JSON.parse(localStorage.getItem('gj_favs') || '[]'))
     } catch {}
@@ -81,14 +81,12 @@ export default function Home() {
     } = sb.auth.onAuthStateChange((_, s) => setUser(s?.user ?? null))
 
     sb.from('businesses')
-  .select('*', { count: 'exact', head: true })
-  .eq('is_active', true)
-  .then(({ count, error }) => {
-    if (!error && count !== null) {
-      setTotalCount(count)
-    }
-  })
-    
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .then(({ count, error }) => {
+        if (!error && count !== null) setTotalCount(count)
+      })
+
     sb.from('businesses')
       .select('category_main')
       .eq('is_active', true)
@@ -110,38 +108,32 @@ export default function Home() {
         setCats([allCat, ...(data || [])])
       })
 
-sb.from('banners')
-  .select('*')
-  .eq('is_active', true)
-  .order('created_at', { ascending: false })
-  .then(({ data, error }) => {
-    console.log('banners error:', error)
-    console.log('banners data:', data)
+    sb.from('banners')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error || !data) return
 
-    if (error || !data) return
+        const bottom = data.filter(
+          (b: any) =>
+            b.position === 'home_top' ||
+            b.position === 'home_bottom' ||
+            b.position === 'bottom' ||
+            b.position === 'footer'
+        )
 
-const bottom = data.filter(
-  (b: any) =>
-    b.position === 'home_top' ||
-    b.position === 'home_bottom' ||
-    b.position === 'bottom' ||
-    b.position === 'footer'
-)
-
-    console.log('bottom banners:', bottom)
-    setBottomBanners(bottom)
-  })
+        setBottomBanners(bottom)
+      })
 
     return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
     if (bottomBanners.length <= 1) return
-
     const timer = setInterval(() => {
       setBottomBannerIndex((prev) => (prev + 1) % bottomBanners.length)
     }, 4000)
-
     return () => clearInterval(timer)
   }, [bottomBanners])
 
@@ -170,7 +162,6 @@ const bottom = data.filter(
     else q = q.order(sort as any, { ascending: false, nullsFirst: false })
 
     const { data } = await q.limit(300)
-
     setBiz(data || [])
     setLoading(false)
   }, [cat, search, sort])
@@ -205,31 +196,23 @@ const bottom = data.filter(
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div>
             {headerLogoUrl && !showTextLogo ? (
-  <img
-    src={headerLogoUrl}
-    alt={siteName}
-    className="h-8 w-auto"
-    style={{ maxWidth: `${headerLogoWidth}px` }}
-  />
-) : (
-<div>
-  {headerLogoUrl && !showTextLogo ? (
-    <img
-      src={headerLogoUrl}
-      alt={siteName}
-      className="h-8 w-auto"
-      style={{ maxWidth: `${headerLogoWidth}px` }}
-    />
-  ) : (
-    <h1 className="text-[20px] font-extrabold text-white">
-      <span className="text-amber-400">교차로</span> 휴스턴
-    </h1>
-  )}
+              <img
+                src={headerLogoUrl}
+                alt={siteName}
+                className="h-8 w-auto"
+                style={{ maxWidth: `${headerLogoWidth}px` }}
+              />
+            ) : (
+              <h1 className="text-[20px] font-extrabold text-white">
+                <span className="text-amber-400">교차로</span> 휴스턴
+              </h1>
+            )}
 
-  <p className="text-[11px] text-white/40 mt-0.5">
-    Houston, TX · 한인 비즈니스 디렉토리
-  </p>
-</div>
+            <p className="text-[11px] text-white/40 mt-0.5">
+              Houston, TX · 한인 비즈니스 디렉토리
+            </p>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-bold text-amber-400 bg-amber-400/15 px-3 py-1 rounded-full">
               {totalCount}개
@@ -498,28 +481,32 @@ const bottom = data.filter(
                   <span>📍</span>
                   <div>
                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">주소</div>
-                    <div className="text-[14px]">{sel.address}</div>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sel.address)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[14px] font-semibold text-indigo-600 underline"
+                    >
+                      {sel.address}
+                    </a>
                   </div>
                 </div>
               )}
 
               {sel.phone && (
-{sel.address && (
-  <div className="flex gap-3 py-2">
-    <span>📍</span>
-    <div>
-      <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">주소</div>
-      <a
-        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sel.address)}`}
-        target="_blank"
-        rel="noreferrer"
-        className="text-[14px] font-semibold text-indigo-600 underline"
-      >
-        {sel.address}
-      </a>
-    </div>
-  </div>
-)}
+                <div className="flex gap-3 py-2">
+                  <span>📞</span>
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">전화</div>
+                    <a
+                      href={'tel:' + sel.phone}
+                      className="text-[14px] font-semibold text-indigo-600"
+                    >
+                      {sel.phone}
+                    </a>
+                  </div>
+                </div>
+              )}
 
               {sel.website && (
                 <div className="flex gap-3 py-2">
