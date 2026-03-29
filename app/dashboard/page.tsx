@@ -1,27 +1,22 @@
 'use client'
-import { useState, useEffect } from 'react'
+
+import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { Edit, LogOut, ChevronRight } from 'lucide-react'
 
 const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
-  const [biz, setBiz] = useState<any>(null)
-  const [sub, setSub] = useState<any>(null)
+  const [biz, setBiz] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    const p = new URLSearchParams(location.search)
-    if (p.get('login') === 'success') setMsg('✅ 로그인 성공!')
-    if (p.get('success') === 'true') setMsg('🎉 VIP 플랜 시작!')
-    setTimeout(() => setMsg(''), 4000)
+    const init = async () => {
+      const { data } = await sb.auth.getUser()
 
-    sb.auth.getUser().then(async ({ data }) => {
       if (!data.user) {
         window.location.href = '/auth/login'
         return
@@ -29,46 +24,18 @@ export default function Dashboard() {
 
       setUser(data.user)
 
-      // ✅ 관리자 권한 확인 추가
-      const { data: profile } = await sb
-        .from('user_profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single()
-
-      if (profile?.role === 'admin' || profile?.role === 'super_admin') {
-        window.location.href = '/admin'
-        return
-      }
-
-      // 기존 업소주 로직
-      const { data: b } = await sb
+      // 내 업소 가져오기
+      const { data: businesses } = await sb
         .from('businesses')
         .select('*')
         .eq('owner_id', data.user.id)
-        .single()
 
-      setBiz(b)
-
-      if (b) {
-        const { data: s } = await sb
-          .from('subscriptions')
-          .select('*')
-          .eq('business_id', b.id)
-          .eq('status', 'active')
-          .single()
-
-        setSub(s)
-      }
-
+      setBiz(businesses || [])
       setLoading(false)
-    })
-  }, [])
+    }
 
-  const signOut = async () => {
-    await sb.auth.signOut()
-    window.location.href = '/'
-  }
+    init()
+  }, [])
 
   if (loading) {
     return (
@@ -80,100 +47,115 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-100 max-w-lg mx-auto pb-10">
-      <div className="bg-[#1a1a2e] px-5 pt-12 pb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-[18px] font-bold text-white">대시보드</h1>
-          <p className="text-[12px] text-white/50 mt-0.5">{user?.email}</p>
-        </div>
-        <button
-          onClick={signOut}
-          className="flex items-center gap-1.5 text-white/40 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
-        >
-          <LogOut size={13} />
-          로그아웃
-        </button>
+      
+      {/* 헤더 */}
+      <div className="bg-[#1a1a2e] px-5 pt-10 pb-6">
+        <h1 className="text-[22px] font-extrabold text-white">👤 내 대시보드</h1>
+        <p className="text-white/40 text-[12px] mt-1">
+          내 업소 관리 및 등록
+        </p>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
-        {msg && (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-[14px] font-bold text-green-700">
-            {msg}
-          </div>
-        )}
+      <div className="px-4 py-4 space-y-3">
 
-        {!biz ? (
-          <div className="bg-white rounded-xl p-6 text-center border border-slate-200">
-            <div className="text-4xl mb-3">🏢</div>
-            <div className="text-[16px] font-bold text-slate-700 mb-2">등록된 업소가 없습니다</div>
-            <p className="text-[13px] text-slate-400 mb-4">업소를 등록하고 더 많은 고객을 만나세요</p>
-            <a href="/register" className="inline-block bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl text-[14px]">
-              업소 등록하기
-            </a>
-          </div>
-        ) : (
+        {/* 내 업소가 있는 경우 */}
+        {biz.length > 0 ? (
           <>
-            <div className={`rounded-xl p-4 border ${sub ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[12px] font-bold text-slate-500 mb-1">구독 플랜</div>
-                  {sub ? (
-                    <div className="text-[20px] font-extrabold text-amber-700">⭐ {sub.tier?.toUpperCase()} 플랜</div>
-                  ) : (
-                    <div className="text-[16px] font-bold text-slate-700">무료 플랜</div>
-                  )}
-                </div>
-                <a
-                  href="/pricing"
-                  className={`px-4 py-2.5 rounded-lg text-[13px] font-bold ${sub ? 'bg-amber-100 text-amber-700' : 'bg-indigo-600 text-white'}`}
-                >
-                  {sub ? '플랜 변경' : 'VIP 시작'}
-                </a>
-              </div>
-            </div>
+            {biz.map((b) => (
+              <a
+                key={b.id}
+                href={`/dashboard/business/${b.id}`}
+                className="block bg-white rounded-xl border border-slate-200 px-4 py-4 hover:bg-slate-50"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl">🏢</div>
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-bold text-slate-800">
+                      {b.name_kr || b.name_en}
+                    </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-bold text-slate-700">내 업소</h2>
-                <a href="/dashboard/profile" className="text-[12px] text-indigo-600 font-bold flex items-center gap-1">
-                  <Edit size={13} />
-                  수정
-                </a>
-              </div>
-              <div className="font-bold text-slate-800 text-[16px]">{biz.name_kr || biz.name_en}</div>
-              <div className="text-[12px] text-slate-400 mt-0.5">{biz.category_main}</div>
-              {biz.phone && <div className="text-[12px] text-slate-500 mt-1">📞 {biz.phone}</div>}
-              {biz.address && <div className="text-[12px] text-slate-500 mt-0.5">📍 {biz.address}</div>}
-              {!biz.approved && (
-                <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-[11px] text-yellow-700 font-bold">
-                  ⏳ 관리자 검토 중
-                </div>
-              )}
-            </div>
+                    <div className="text-[12px] text-slate-400 mt-1">
+                      {b.category_main}
+                    </div>
 
-            {!sub && (
-              <a href="/pricing" className="block bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-4 text-center">
-                <div className="text-white font-bold text-[15px]">⭐ VIP로 업그레이드하면</div>
-                <div className="text-white/70 text-[12px] mt-1">카테고리 최상단 노출 · 소개글 · 통계</div>
-                <div className="mt-3 bg-white/20 text-white text-[13px] font-bold px-5 py-2 rounded-lg inline-block">
-                  14일 무료 체험 →
+                    {b.is_vip && (
+                      <div className="text-[11px] text-amber-600 font-bold mt-1">
+                        ⭐ VIP 업소
+                      </div>
+                    )}
+                  </div>
                 </div>
               </a>
-            )}
+            ))}
+          </>
+        ) : (
+          <>
+            {/* 업소 없음 안내 */}
+            <div className="bg-white rounded-xl border border-slate-200 px-4 py-6 text-center">
+              <div className="text-[14px] font-bold text-slate-700">
+                아직 등록된 내 업소가 없습니다
+              </div>
+              <div className="text-[12px] text-slate-400 mt-1">
+                새로 등록하거나 기존 업소를 찾아 연결하세요
+              </div>
+            </div>
           </>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-          <a href="/dashboard/profile" className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50">
-            <span className="text-xl">✏️</span>
-            <span className="text-[14px] font-bold text-slate-700 flex-1">업소 정보 수정</span>
-            <ChevronRight size={16} className="text-slate-300" />
-          </a>
-          <a href="/pricing" className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50">
-            <span className="text-xl">⭐</span>
-            <span className="text-[14px] font-bold text-slate-700 flex-1">VIP 요금제</span>
-            <ChevronRight size={16} className="text-slate-300" />
-          </a>
-        </div>
+        {/* 내 업소 등록 */}
+        <a
+          href="/register"
+          className="block bg-indigo-600 text-white rounded-xl px-4 py-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">➕</div>
+            <div>
+              <div className="text-[14px] font-bold">
+                새 업소 등록
+              </div>
+              <div className="text-[12px] text-white/70 mt-1">
+                내 업소를 직접 등록합니다
+              </div>
+            </div>
+          </div>
+        </a>
+
+        {/* 🔥 핵심: 내 업소 찾기 */}
+        <a
+          href="/dashboard/claim"
+          className="block bg-white rounded-xl border border-slate-200 px-4 py-4 hover:bg-slate-50"
+        >
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">🏷️</div>
+            <div>
+              <div className="text-[14px] font-bold text-slate-800">
+                내 업소 찾기
+              </div>
+              <div className="text-[12px] text-slate-400 mt-1">
+                이미 등록된 업소를 내 계정으로 연결
+              </div>
+            </div>
+          </div>
+        </a>
+
+        {/* VIP 안내 */}
+        <a
+          href="/pricing"
+          className="block bg-amber-50 border border-amber-200 rounded-xl px-4 py-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">⭐</div>
+            <div>
+              <div className="text-[14px] font-bold text-amber-700">
+                VIP 업그레이드
+              </div>
+              <div className="text-[12px] text-amber-600 mt-1">
+                상위 노출 및 추가 정보 표시
+              </div>
+            </div>
+          </div>
+        </a>
+
       </div>
     </div>
   )
