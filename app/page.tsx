@@ -214,6 +214,19 @@ export default function Home() {
     window.location.href = '/'
   }
 
+  const handleBannerClick = async (banner: any) => {
+  if (!banner?.id) return
+
+  try {
+    await sb
+      .from('banners')
+      .update({ click_count: (banner.click_count || 0) + 1 })
+      .eq('id', banner.id)
+  } catch (error) {
+    console.error('banner click count update failed:', error)
+  }
+}
+  
   const currentTopBanner =
     topBanners.length > 0 ? topBanners[topBannerIndex] : null
 
@@ -223,37 +236,38 @@ export default function Home() {
   const currentBottomBanner =
     bottomBanners.length > 0 ? bottomBanners[bottomBannerIndex] : null
 
-  const renderBanner = (banner: any, className = '') => {
-    if (!banner) return null
+const renderBanner = (banner: any, className = '') => {
+  if (!banner) return null
 
-    return (
-      <a
-        href={banner.link_url || '#'}
-        target="_blank"
-        rel="noreferrer"
-        className={`block rounded-xl overflow-hidden shadow-lg border border-slate-200 bg-white ${className}`}
-      >
-        {banner.image_url ? (
-          <img
-            src={banner.image_url}
-            alt={banner.title || '배너'}
-            className="w-full h-20 object-cover"
-          />
-        ) : (
-          <div className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
-            <div className="text-[14px] font-extrabold">
-              {banner.title || '광고 배너'}
-            </div>
-            {banner.subtitle && (
-              <div className="text-[12px] text-white/80 mt-0.5">
-                {banner.subtitle}
-              </div>
-            )}
+  return (
+    <a
+      href={banner.link_url || '#'}
+      target="_blank"
+      rel="noreferrer"
+      onClick={() => handleBannerClick(banner)}
+      className={`block rounded-xl overflow-hidden shadow-lg border border-slate-200 bg-white ${className}`}
+    >
+      {banner.image_url ? (
+        <img
+          src={banner.image_url}
+          alt={banner.title || '배너'}
+          className="w-full h-20 object-cover"
+        />
+      ) : (
+        <div className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
+          <div className="text-[14px] font-extrabold">
+            {banner.title || '광고 배너'}
           </div>
-        )}
-      </a>
-    )
-  }
+          {banner.subtitle && (
+            <div className="text-[12px] text-white/80 mt-0.5">
+              {banner.subtitle}
+            </div>
+          )}
+        </div>
+      )}
+    </a>
+  )
+}
 
   return (
     <div className="min-h-screen bg-slate-100 max-w-lg mx-auto">
