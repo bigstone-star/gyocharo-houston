@@ -23,20 +23,6 @@ export type Business = {
   owner_id: string | null; description_kr: string | null; photo_url: string | null;
   sns_instagram: string | null; sns_kakao: string | null; approved: boolean;
 }
-
-// 카테고리 (DB에서 동적으로 불러오되 fallback용)
-export const CATEGORIES = [
-  { name: '전체', icon: '🏠' },
-  { name: '식당·카페', icon: '🍽️' }, { name: '마트·식품', icon: '🛒' },
-  { name: '의료', icon: '🏥' }, { name: '치과', icon: '🦷' },
-  { name: '법률', icon: '⚖️' }, { name: '자동차', icon: '🚗' },
-  { name: '미용', icon: '💇' }, { name: '교육', icon: '📚' },
-  { name: '금융·보험', icon: '💰' }, { name: '커뮤니티', icon: '🏠' },
-  { name: '부동산', icon: '🏡' }, { name: '세탁소', icon: '🧺' },
-  { name: '한의원', icon: '🌿' }, { name: '여행·관광', icon: '✈️' },
-  { name: '기타', icon: '📋' },
-]
-
 export const PLANS = [
   { tier: 'basic' as const, name: 'Basic', price: 29,
     priceId: process.env.NEXT_PUBLIC_STRIPE_BASIC || '',
