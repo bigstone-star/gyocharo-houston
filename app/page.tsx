@@ -7,6 +7,19 @@ const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+.then(({ data, error }) => {
+  console.log('site_settings error:', error)
+  console.log('site_settings data:', data)
+
+  if (error || !data) return
+  setSiteName(data.site_name || '교차로 휴스턴')
+  setHeaderLogoUrl(data.header_logo_url || '')
+  setHeaderLogoWidth(data.header_logo_width || 140)
+  setShowTextLogo(!!data.show_text_logo)
+})
+console.log('headerLogoUrl:', headerLogoUrl)
+console.log('showTextLogo:', showTextLogo)
+
 const CAT_BG: Record<string, string> = {
   '식당·카페': 'bg-orange-50',
   '마트·식품': 'bg-yellow-50',
