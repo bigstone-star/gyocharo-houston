@@ -44,6 +44,7 @@ export default function Home() {
   const [cats, setCats] = useState<Category[]>([])
   const [bottomBanners, setBottomBanners] = useState<any[]>([])
   const [bottomBannerIndex, setBottomBannerIndex] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
 
   const SORTS = ['rating', 'review_count', 'name_en']
   const SORT_LABELS: Record<string, string> = {
@@ -63,6 +64,15 @@ export default function Home() {
       data: { subscription },
     } = sb.auth.onAuthStateChange((_, s) => setUser(s?.user ?? null))
 
+    sb.from('businesses')
+  .select('*', { count: 'exact', head: true })
+  .eq('is_active', true)
+  .then(({ count, error }) => {
+    if (!error && count !== null) {
+      setTotalCount(count)
+    }
+  })
+    
     sb.from('businesses')
       .select('category_main')
       .eq('is_active', true)
@@ -188,7 +198,7 @@ const bottom = data.filter(
 
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-bold text-amber-400 bg-amber-400/15 px-3 py-1 rounded-full">
-              {biz.length}개
+              {totalCount}개
             </span>
 
             {user ? (
