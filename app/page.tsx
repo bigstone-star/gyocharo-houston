@@ -230,7 +230,6 @@ const bottom = data.filter(
     Houston, TX · 한인 비즈니스 디렉토리
   </p>
 </div>
-
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-bold text-amber-400 bg-amber-400/15 px-3 py-1 rounded-full">
               {totalCount}개
