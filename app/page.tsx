@@ -298,18 +298,16 @@ export default function Home() {
     )}
   </div>
 ) : (
-  <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
-    <div className="text-[13px] font-bold text-slate-700 truncate">
-      전체 <span className="text-slate-300 mx-1">&gt;</span> {cat}
-    </div>
-
-    <button
-      onClick={() => setCat('전체')}
-      className="text-[12px] font-bold text-indigo-600 shrink-0"
-    >
-      전체로
-    </button>
-  </div>
+<div className="bg-white border-b border-slate-200 px-4 py-3">
+  <button
+    onClick={() => setCat('전체')}
+    className="text-[13px] font-bold text-slate-700 truncate text-left"
+  >
+    <span className="text-indigo-600">전체</span>
+    <span className="text-slate-300 mx-1">&gt;</span>
+    <span>{cat}</span>
+  </button>
+</div>
 )}
 
       <main className="px-3 py-2.5 pb-44 space-y-2">
