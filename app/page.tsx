@@ -373,9 +373,17 @@ export default function Home() {
                     {b.name_kr || b.name_en}
                   </div>
 
-                  {addr && (
-                    <div className="text-[12px] text-slate-500 truncate mt-0.5">{addr}</div>
-                  )}
+{addr && (
+  <a
+    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
+    target="_blank"
+    rel="noreferrer"
+    onClick={(e) => e.stopPropagation()}
+    className="block text-[12px] text-slate-500 truncate mt-0.5 underline"
+  >
+    {addr}
+  </a>
+)}
 
                   <div className="flex items-center gap-2.5 mt-1">
                     {b.rating > 0 && (
