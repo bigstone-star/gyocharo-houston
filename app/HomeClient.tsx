@@ -1,5 +1,6 @@
 'use client'
 
+import AiRecommendBox from './components/AiRecommendBox'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -600,7 +601,9 @@ export default function HomeClient() {
           {renderBanner(currentTopBanner)}
         </div>
       )}
-
+<div className="px-3 pt-3">
+  <AiRecommendBox />
+</div>
       {currentCat === '전체' ? (
         <div className="bg-white border-b border-slate-200 px-3.5 py-3.5 mt-3">
           <div className="text-[11px] font-bold text-slate-400 tracking-widest mb-2.5">
