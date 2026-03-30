@@ -1,5 +1,15 @@
 'use client'
 
+import { Suspense } from 'react'
+import HomeClient from './HomeClient'
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeClient />
+    </Suspense>
+  )
+}
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -44,7 +54,7 @@ type Category = {
   sort_order: number
 }
 
-export default function Home() {
+export default function HomeClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
