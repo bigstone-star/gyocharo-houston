@@ -42,11 +42,16 @@ type Category = {
   name: string
   icon: string
   sort_order: number
+  is_active?: boolean
 }
 
 export default function HomeClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  const currentCat = searchParams.get('cat') || '전체'
+  const currentQuery = searchParams.get('q') || ''
+  const currentBizId = searchParams.get('biz') || ''
 
   const [biz, setBiz] = useState<any[]>([])
   const [siteName, setSiteName] = useState('교차로 휴스턴')
@@ -55,8 +60,7 @@ export default function HomeClient() {
   const [showTextLogo, setShowTextLogo] = useState(false)
 
   const [loading, setLoading] = useState(true)
-  const [cat, setCat] = useState('전체')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(currentQuery)
   const [sort, setSort] = useState('rating')
 
   const [sel, setSel] = useState<any>(null)
@@ -103,27 +107,27 @@ export default function HomeClient() {
   }
 
   useEffect(() => {
-    const catFromUrl = searchParams.get('cat')
-    setCat(catFromUrl || '전체')
-  }, [searchParams])
-
-  useEffect(() => {
-    const qFromUrl = searchParams.get('q') || ''
-    if (qFromUrl !== search) {
-      setSearch(qFromUrl)
+    if (currentQuery !== search) {
+      setSearch(currentQuery)
     }
-  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentQuery]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const buildUrl = (params: URLSearchParams) => {
+    const query = params.toString()
+    return query ? `/?${query}` : '/'
+  }
 
   const changeCategory = (nextCat: string) => {
     const params = new URLSearchParams(searchParams.toString())
 
-    if (nextCat === '전체') params.delete('cat')
-    else params.set('cat', nextCat)
+    if (nextCat === '전체') {
+      params.delete('cat')
+    } else {
+      params.set('cat', nextCat)
+    }
 
     params.delete('biz')
-
-    const query = params.toString()
-    router.push(query ? `/?${query}` : '/')
+    router.push(buildUrl(params))
   }
 
   const updateSearchQuery = (nextSearch: string) => {
@@ -131,29 +135,26 @@ export default function HomeClient() {
 
     const params = new URLSearchParams(searchParams.toString())
 
-    if (nextSearch.trim()) params.set('q', nextSearch)
-    else params.delete('q')
+    if (nextSearch.trim()) {
+      params.set('q', nextSearch)
+    } else {
+      params.delete('q')
+    }
 
     params.delete('biz')
-
-    const query = params.toString()
-    router.push(query ? `/?${query}` : '/')
+    router.push(buildUrl(params))
   }
 
-  const openBusinessModal = async (b: any) => {
+  const openBusinessModal = (b: any) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('biz', b.id)
-
-    const query = params.toString()
-    router.push(query ? `/?${query}` : '/')
+    router.push(buildUrl(params))
   }
 
   const closeModal = () => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete('biz')
-
-    const query = params.toString()
-    router.push(query ? `/?${query}` : '/')
+    router.push(buildUrl(params))
   }
 
   useEffect(() => {
@@ -260,9 +261,11 @@ export default function HomeClient() {
 
     let q = sb.from('businesses').select('*').eq('is_active', true)
 
-    if (cat !== '전체') q = q.eq('category_main', cat)
+    if (currentCat !== '전체') {
+      q = q.eq('category_main', currentCat)
+    }
 
-    const normalizedSearch = search.replace(/\s+/g, ' ').trim()
+    const normalizedSearch = currentQuery.replace(/\s+/g, ' ').trim()
 
     if (normalizedSearch) {
       q = q.or(
@@ -279,8 +282,11 @@ export default function HomeClient() {
 
     q = q.order('is_vip', { ascending: false })
 
-    if (sort === 'name_en') q = q.order('name_en', { ascending: true })
-    else q = q.order(sort as any, { ascending: false, nullsFirst: false })
+    if (sort === 'name_en') {
+      q = q.order('name_en', { ascending: true })
+    } else {
+      q = q.order(sort as any, { ascending: false, nullsFirst: false })
+    }
 
     const { data, error } = await q.limit(300)
 
@@ -292,91 +298,85 @@ export default function HomeClient() {
     }
 
     setLoading(false)
-  }, [cat, search, sort])
+  }, [currentCat, currentQuery, sort])
 
   useEffect(() => {
     load()
   }, [load])
 
-  const loadReviews = useCallback(async (businessId: string) => {
-    setReviewLoading(true)
+  const loadReviews = useCallback(
+    async (businessId: string) => {
+      setReviewLoading(true)
 
-    const { data, error } = await sb
-      .from('reviews')
-      .select('*')
-      .eq('business_id', businessId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
+      const { data, error } = await sb
+        .from('reviews')
+        .select('*')
+        .eq('business_id', businessId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('reviews load error:', error)
-      setReviews([])
-      setMyReview(null)
-      setReviewLoading(false)
-      return
-    }
+      if (error) {
+        console.error('reviews load error:', error)
+        setReviews([])
+        setMyReview(null)
+        setReviewLoading(false)
+        return
+      }
 
-    const list = data || []
-    setReviews(list)
+      const list = data || []
+      setReviews(list)
 
-    if (user) {
-      const mine = list.find((r: any) => r.user_id === user.id) || null
-      setMyReview(mine)
+      if (user) {
+        const mine = list.find((r: any) => r.user_id === user.id) || null
+        setMyReview(mine)
 
-      if (mine) {
-        setReviewForm({
-          rating: mine.rating || 5,
-          review_text: mine.review_text || '',
-          tags: mine.tags || [],
-        })
+        if (mine) {
+          setReviewForm({
+            rating: mine.rating || 5,
+            review_text: mine.review_text || '',
+            tags: mine.tags || [],
+          })
+        } else {
+          setReviewForm({
+            rating: 5,
+            review_text: '',
+            tags: [],
+          })
+        }
       } else {
+        setMyReview(null)
         setReviewForm({
           rating: 5,
           review_text: '',
           tags: [],
         })
       }
-    } else {
-      setMyReview(null)
-      setReviewForm({
-        rating: 5,
-        review_text: '',
-        tags: [],
-      })
-    }
 
-    setReviewLoading(false)
-  }, [user])
+      setReviewLoading(false)
+    },
+    [user]
+  )
 
-  // URL의 biz 쿼리와 모달 상태를 완전히 동기화
   useEffect(() => {
-    const bizId = searchParams.get('biz')
-
-    // biz가 없으면 모달 닫기
-    if (!bizId) {
+    if (!currentBizId) {
       if (sel) resetModalState()
       return
     }
 
-    // 목록이 아직 없으면 대기
     if (biz.length === 0) return
+    if (sel?.id === currentBizId) return
 
-    // 이미 같은 업소가 열려 있으면 그대로
-    if (sel?.id === bizId) return
-
-    const target = biz.find((b) => b.id === bizId)
+    const target = biz.find((b) => b.id === currentBizId)
 
     if (target) {
       setSel(target)
       loadReviews(target.id)
     } else {
-      // biz id가 현재 목록에 없으면 biz 쿼리 제거
       const params = new URLSearchParams(searchParams.toString())
       params.delete('biz')
-      const query = params.toString()
-      router.replace(query ? `/?${query}` : '/')
+      router.replace(buildUrl(params))
     }
-  }, [searchParams, biz, sel, loadReviews, router])
+  }, [currentBizId, biz, sel, loadReviews, router, searchParams])
 
   const toggleReviewTag = (tag: string) => {
     setReviewForm((prev) => {
@@ -595,7 +595,7 @@ export default function HomeClient() {
         </div>
       )}
 
-      {cat === '전체' ? (
+      {currentCat === '전체' ? (
         <div className="bg-white border-b border-slate-200 px-3.5 py-3.5 mt-3">
           <div className="text-[11px] font-bold text-slate-400 tracking-widest mb-2.5">
             카테고리
@@ -637,7 +637,7 @@ export default function HomeClient() {
           >
             <span className="text-indigo-600">전체</span>
             <span className="text-slate-300 mx-1">&gt;</span>
-            <span>{cat}</span>
+            <span>{currentCat}</span>
           </button>
         </div>
       )}
