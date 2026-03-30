@@ -25,6 +25,17 @@ const CAT_BG: Record<string, string> = {
   '기타': 'bg-slate-100',
 }
 
+const REVIEW_TAGS = [
+  '친절함',
+  '가격 좋음',
+  '깨끗함',
+  '주차 편함',
+  '맛있음',
+  '재방문 의사',
+  '전문적임',
+  '응답 빠름',
+]
+
 type Category = {
   id: string
   name: string
@@ -57,6 +68,17 @@ export default function Home() {
   const [topBannerIndex, setTopBannerIndex] = useState(0)
   const [middleBannerIndex, setMiddleBannerIndex] = useState(0)
   const [bottomBannerIndex, setBottomBannerIndex] = useState(0)
+
+  // ===== 리뷰 상태 =====
+  const [reviews, setReviews] = useState<any[]>([])
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewSaving, setReviewSaving] = useState(false)
+  const [myReview, setMyReview] = useState<any>(null)
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    review_text: '',
+    tags: [] as string[],
+  })
 
   const SORTS = ['rating', 'review_count', 'name_en']
   const SORT_LABELS: Record<string, string> = {
@@ -171,15 +193,18 @@ export default function Home() {
 
     if (cat !== '전체') q = q.eq('category_main', cat)
 
-    if (search.trim()) {
+    const normalizedSearch = search.replace(/\s+/g, ' ').trim()
+
+    if (normalizedSearch) {
       q = q.or(
-        'name_en.ilike.%' +
-          search +
-          '%,name_kr.ilike.%' +
-          search +
-          '%,address.ilike.%' +
-          search +
-          '%'
+        [
+          `name_en.ilike.%${normalizedSearch}%`,
+          `name_kr.ilike.%${normalizedSearch}%`,
+          `category_main.ilike.%${normalizedSearch}%`,
+          `category_sub.ilike.%${normalizedSearch}%`,
+          `address.ilike.%${normalizedSearch}%`,
+          `phone.ilike.%${normalizedSearch}%`,
+        ].join(',')
       )
     }
 
@@ -188,14 +213,133 @@ export default function Home() {
     if (sort === 'name_en') q = q.order('name_en', { ascending: true })
     else q = q.order(sort as any, { ascending: false, nullsFirst: false })
 
-    const { data } = await q.limit(300)
-    setBiz(data || [])
+    const { data, error } = await q.limit(300)
+
+    if (error) {
+      console.error('business load error:', error)
+      setBiz([])
+    } else {
+      setBiz(data || [])
+    }
+
     setLoading(false)
   }, [cat, search, sort])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const loadReviews = useCallback(async (businessId: string) => {
+    setReviewLoading(true)
+
+    const { data, error } = await sb
+      .from('reviews')
+      .select('*')
+      .eq('business_id', businessId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('reviews load error:', error)
+      setReviews([])
+      setMyReview(null)
+      setReviewLoading(false)
+      return
+    }
+
+    const list = data || []
+    setReviews(list)
+
+    if (user) {
+      const mine = list.find((r: any) => r.user_id === user.id) || null
+      setMyReview(mine)
+
+      if (mine) {
+        setReviewForm({
+          rating: mine.rating || 5,
+          review_text: mine.review_text || '',
+          tags: mine.tags || [],
+        })
+      } else {
+        setReviewForm({
+          rating: 5,
+          review_text: '',
+          tags: [],
+        })
+      }
+    } else {
+      setMyReview(null)
+      setReviewForm({
+        rating: 5,
+        review_text: '',
+        tags: [],
+      })
+    }
+
+    setReviewLoading(false)
+  }, [user])
+
+  const toggleReviewTag = (tag: string) => {
+    setReviewForm((prev) => {
+      const exists = prev.tags.includes(tag)
+      return {
+        ...prev,
+        tags: exists
+          ? prev.tags.filter((t) => t !== tag)
+          : [...prev.tags, tag],
+      }
+    })
+  }
+
+  const saveReview = async () => {
+    if (!user) {
+      alert('리뷰 작성은 로그인 후 가능합니다.')
+      return
+    }
+
+    if (!sel?.id) return
+
+    if (!reviewForm.review_text.trim()) {
+      alert('한 줄 리뷰를 입력하세요.')
+      return
+    }
+
+    setReviewSaving(true)
+
+    const payload = {
+      business_id: sel.id,
+      user_id: user.id,
+      rating: reviewForm.rating,
+      review_text: reviewForm.review_text.trim(),
+      tags: reviewForm.tags,
+      is_active: true,
+    }
+
+    let error = null
+
+    if (myReview) {
+      const res = await sb
+        .from('reviews')
+        .update(payload)
+        .eq('id', myReview.id)
+      error = res.error
+    } else {
+      const res = await sb
+        .from('reviews')
+        .insert(payload)
+      error = res.error
+    }
+
+    setReviewSaving(false)
+
+    if (error) {
+      alert('리뷰 저장 실패: ' + error.message)
+      return
+    }
+
+    await loadReviews(sel.id)
+    alert(myReview ? '리뷰가 수정되었습니다.' : '리뷰가 등록되었습니다.')
+  }
 
   const toggleFav = (id: string, e: any) => {
     e.stopPropagation()
@@ -215,18 +359,29 @@ export default function Home() {
   }
 
   const handleBannerClick = async (banner: any) => {
-  if (!banner?.id) return
+    if (!banner?.id) return
 
-  try {
-    await sb
-      .from('banners')
-      .update({ click_count: (banner.click_count || 0) + 1 })
-      .eq('id', banner.id)
-  } catch (error) {
-    console.error('banner click count update failed:', error)
+    try {
+      await sb
+        .from('banners')
+        .update({ click_count: (banner.click_count || 0) + 1 })
+        .eq('id', banner.id)
+    } catch (error) {
+      console.error('banner click count update failed:', error)
+    }
   }
-}
-  
+
+  const closeModal = () => {
+    setSel(null)
+    setReviews([])
+    setMyReview(null)
+    setReviewForm({
+      rating: 5,
+      review_text: '',
+      tags: [],
+    })
+  }
+
   const currentTopBanner =
     topBanners.length > 0 ? topBanners[topBannerIndex] : null
 
@@ -236,38 +391,43 @@ export default function Home() {
   const currentBottomBanner =
     bottomBanners.length > 0 ? bottomBanners[bottomBannerIndex] : null
 
-const renderBanner = (banner: any, className = '') => {
-  if (!banner) return null
+  const renderBanner = (banner: any, className = '') => {
+    if (!banner) return null
 
-  return (
-    <a
-      href={banner.link_url || '#'}
-      target="_blank"
-      rel="noreferrer"
-      onClick={() => handleBannerClick(banner)}
-      className={`block rounded-xl overflow-hidden shadow-lg border border-slate-200 bg-white ${className}`}
-    >
-      {banner.image_url ? (
-        <img
-          src={banner.image_url}
-          alt={banner.title || '배너'}
-          className="w-full h-20 object-cover"
-        />
-      ) : (
-        <div className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
-          <div className="text-[14px] font-extrabold">
-            {banner.title || '광고 배너'}
-          </div>
-          {banner.subtitle && (
-            <div className="text-[12px] text-white/80 mt-0.5">
-              {banner.subtitle}
+    return (
+      <a
+        href={banner.link_url || '#'}
+        target="_blank"
+        rel="noreferrer"
+        onClick={() => handleBannerClick(banner)}
+        className={`block rounded-xl overflow-hidden shadow-lg border border-slate-200 bg-white ${className}`}
+      >
+        {banner.image_url ? (
+          <img
+            src={banner.image_url}
+            alt={banner.title || '배너'}
+            className="w-full h-20 object-cover"
+          />
+        ) : (
+          <div className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
+            <div className="text-[14px] font-extrabold">
+              {banner.title || '광고 배너'}
             </div>
-          )}
-        </div>
-      )}
-    </a>
-  )
-}
+            {banner.subtitle && (
+              <div className="text-[12px] text-white/80 mt-0.5">
+                {banner.subtitle}
+              </div>
+            )}
+          </div>
+        )}
+      </a>
+    )
+  }
+
+  const avgRating =
+    reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length
+      : 0
 
   return (
     <div className="min-h-screen bg-slate-100 max-w-lg mx-auto">
@@ -330,7 +490,7 @@ const renderBanner = (banner: any, className = '') => {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="업소명, 업종, 주소 검색..."
+              placeholder="업소명, 한글명, 업종, 주소, 전화번호 검색..."
               className="bg-transparent border-none outline-none text-white text-[14px] w-full py-2.5 placeholder:text-white/30"
             />
           </div>
@@ -433,7 +593,10 @@ const renderBanner = (banner: any, className = '') => {
             return (
               <div key={b.id}>
                 <div
-                  onClick={() => setSel(b)}
+                  onClick={async () => {
+                    setSel(b)
+                    await loadReviews(b.id)
+                  }}
                   className={`bg-white rounded-xl border px-4 py-3.5 flex gap-3 cursor-pointer active:scale-[.99] transition-all ${
                     b.is_vip
                       ? 'border-amber-300 bg-amber-50/30'
@@ -550,12 +713,12 @@ const renderBanner = (banner: any, className = '') => {
       {sel && (
         <div
           className="fixed inset-0 z-50 bg-black/50 flex items-end"
-          onClick={(e: any) => e.target === e.currentTarget && setSel(null)}
+          onClick={(e: any) => e.target === e.currentTarget && closeModal()}
         >
           <div className="bg-white rounded-t-2xl w-full max-h-[90vh] overflow-y-auto pb-10">
             <div className="flex justify-end px-5 pt-4">
               <button
-                onClick={() => setSel(null)}
+                onClick={closeModal}
                 className="text-slate-400 text-2xl"
               >
                 ✕
@@ -650,6 +813,152 @@ const renderBanner = (banner: any, className = '') => {
                       방문하기 →
                     </a>
                   </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 pt-4 border-t border-slate-100 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-[16px] font-extrabold text-slate-900">리뷰</div>
+                  <div className="text-[12px] text-slate-400 mt-0.5">
+                    {reviews.length > 0
+                      ? `평균 ★${avgRating.toFixed(1)} · ${reviews.length}개`
+                      : '아직 리뷰가 없습니다'}
+                  </div>
+                </div>
+              </div>
+
+              {user ? (
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-4">
+                  <div className="text-[13px] font-bold text-slate-700 mb-3">
+                    {myReview ? '내 리뷰 수정' : '리뷰 작성'}
+                  </div>
+
+                  <div className="mb-3">
+                    <div className="text-[11px] font-bold text-slate-400 mb-2">별점</div>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() =>
+                            setReviewForm((prev) => ({ ...prev, rating: n }))
+                          }
+                          className={`text-2xl ${
+                            n <= reviewForm.rating ? 'text-amber-400' : 'text-slate-300'
+                          }`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <div className="text-[11px] font-bold text-slate-400 mb-2">한 줄 리뷰</div>
+                    <textarea
+                      value={reviewForm.review_text}
+                      onChange={(e) =>
+                        setReviewForm((prev) => ({
+                          ...prev,
+                          review_text: e.target.value,
+                        }))
+                      }
+                      rows={3}
+                      maxLength={120}
+                      placeholder="예: 친절하고 빠르게 응대해줘요"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-indigo-400 resize-none bg-white"
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="text-[11px] font-bold text-slate-400 mb-2">태그</div>
+                    <div className="flex flex-wrap gap-2">
+                      {REVIEW_TAGS.map((tag) => {
+                        const active = reviewForm.tags.includes(tag)
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleReviewTag(tag)}
+                            className={`px-3 py-1.5 rounded-full text-[12px] font-bold border ${
+                              active
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-slate-500 border-slate-200'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={saveReview}
+                    disabled={reviewSaving}
+                    className="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-[13px] font-bold disabled:opacity-50"
+                  >
+                    {reviewSaving ? '저장 중...' : myReview ? '리뷰 수정하기' : '리뷰 등록하기'}
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href="/auth/login"
+                  className="block bg-slate-50 rounded-xl border border-slate-200 p-4 mb-4 text-[13px] text-slate-600"
+                >
+                  리뷰 작성은 로그인 후 가능합니다.
+                </a>
+              )}
+
+              {reviewLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-[13px] text-slate-400 py-4">
+                  첫 리뷰를 남겨보세요.
+                </div>
+              ) : (
+                <div className="space-y-3 pb-2">
+                  {reviews.map((r) => (
+                    <div
+                      key={r.id}
+                      className="bg-white rounded-xl border border-slate-200 p-4"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-[13px] font-bold text-slate-800">
+                          {'★'.repeat(Number(r.rating || 0))}
+                          <span className="ml-2 text-slate-500">
+                            {Number(r.rating || 0).toFixed(1)}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {new Date(r.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+
+                      {r.review_text && (
+                        <div className="text-[13px] text-slate-700 leading-relaxed mb-2">
+                          {r.review_text}
+                        </div>
+                      )}
+
+                      {r.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {r.tags.map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
