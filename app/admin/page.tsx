@@ -260,66 +260,62 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-100 max-w-5xl mx-auto pb-10">
       <div className="bg-[#1a1a2e] px-5 pt-10 pb-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-[24px] font-extrabold text-white">🛠 관리자 대시보드</h1>
-            <p className="text-white/40 text-[12px] mt-1">
-              교차로 휴스턴 운영 현황과 빠른 관리 메뉴
-            </p>
-          </div>
+<div className="bg-[#1a1a2e] px-5 pt-10 pb-6 flex items-center justify-between gap-2">
+  <div>
+    <h1 className="text-[22px] font-extrabold text-white">Admin</h1>
+    <p className="text-white/40 text-[12px] mt-0.5">교차로 휴스턴 운영 관리</p>
+  </div>
 
-          <div className="flex gap-2 flex-wrap justify-end">
-            <a
-              href="/admin/businesses"
-              className="text-white/70 text-[13px] border border-white/20 px-3 py-1.5 rounded-lg"
-            >
-              🏢 업소
-            </a>
-            <a
-              href="/admin/banners"
-              className="text-white/70 text-[13px] border border-white/20 px-3 py-1.5 rounded-lg"
-            >
-              📢 배너
-            </a>
-            <a
-              href="/admin/claims"
-              className="text-white/70 text-[13px] border border-white/20 px-3 py-1.5 rounded-lg"
-            >
-              🏷️ 소유권 요청
-            </a>
-            <a
-              href="/admin/edits"
-              className="text-white/70 text-[13px] border border-white/20 px-3 py-1.5 rounded-lg"
-            >
-              ✏️ 수정 요청
-            </a>
-            <a
-              href="/"
-              className="text-white/70 text-[13px] border border-white/20 px-3 py-1.5 rounded-lg"
-            >
-              홈
-            </a>
-          </div>
+  <div className="flex items-center gap-2 flex-wrap justify-end">
+    <a
+      href="/admin/categories"
+      className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+    >
+      🗂 카테고리
+    </a>
+
+    <a
+      href="/admin/banners"
+      className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+    >
+      📢 배너
+    </a>
+
+    <a
+      href="/dashboard"
+      className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+    >
+      내정보
+    </a>
+
+    <a
+      href="/"
+      className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+    >
+      홈
+    </a>
+  </div>
+</div>
         </div>
       </div>
 
-      <div className="px-4 pt-4">
-        <div className="text-[13px] font-bold text-slate-500 mb-3">운영 현황</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {statCards.map((card) => (
-            <div
-              key={card.label}
-              className="bg-white rounded-xl border border-slate-200 p-4 text-center"
-            >
-              <div className={`text-[24px] font-extrabold ${card.color}`}>
-                {card.value}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1">{card.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+<div className="px-4 py-4">
+  <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-4 flex-wrap">
+    <div className="text-[13px] font-bold text-slate-700">운영 현황</div>
 
+    <div className="text-[12px] text-slate-500">
+      전체 <span className="font-extrabold text-slate-800">{stats.total}</span>
+    </div>
+
+    <div className="text-[12px] text-slate-500">
+      VIP <span className="font-extrabold text-amber-600">{stats.vip}</span>
+    </div>
+
+    <div className="text-[12px] text-slate-500">
+      신규 <span className="font-extrabold text-red-500">{stats.pending}</span>
+    </div>
+  </div>
+</div>
       <div className="px-4 pt-6">
         <div className="text-[13px] font-bold text-slate-500 mb-3">지금 처리할 일</div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
