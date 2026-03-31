@@ -11,10 +11,12 @@ const sb = createClient(
 type UserProfile = {
   id: string
   email?: string | null
-  full_name?: string | null
+  name?: string | null
+  phone?: string | null
+  avatar_url?: string | null
   role?: string | null
-  is_active?: boolean | null
   created_at?: string | null
+  updated_at?: string | null
 }
 
 type BusinessRow = {
@@ -87,11 +89,12 @@ export default function AdminUserDetailPage({
     try {
       const { data: profileData, error: profileError } = await sb
         .from('user_profiles')
-        .select('id, email, full_name, role, is_active, created_at')
+        .select('id, email, name, phone, avatar_url, role, created_at, updated_at')
         .eq('id', userId)
         .maybeSingle()
 
       if (profileError || !profileData) {
+        console.error('profile load error:', profileError)
         setErrorMsg('회원 정보를 찾을 수 없습니다.')
         return
       }
@@ -115,6 +118,7 @@ export default function AdminUserDetailPage({
         .order('created_at', { ascending: false })
 
       if (businessesError) {
+        console.error('businesses load error:', businessesError)
         setErrorMsg('연결 업소를 불러오지 못했습니다.')
         return
       }
@@ -122,6 +126,7 @@ export default function AdminUserDetailPage({
       setProfile(profileData)
       setBusinesses(businessesData || [])
     } catch (e) {
+      console.error('loadDetail catch:', e)
       setErrorMsg('상세 정보 로딩 중 오류가 발생했습니다.')
     }
   }
@@ -144,32 +149,6 @@ export default function AdminUserDetailPage({
       }
 
       alert('✅ 권한이 변경되었습니다.')
-      await loadDetail()
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const toggleActive = async () => {
-    if (!profile) return
-
-    const nextValue = !profile.is_active
-    if (!confirm(`이 회원을 ${nextValue ? '활성화' : '비활성화'}할까요?`)) return
-
-    try {
-      setSaving(true)
-
-      const { error } = await sb
-        .from('user_profiles')
-        .update({ is_active: nextValue })
-        .eq('id', profile.id)
-
-      if (error) {
-        alert('상태 변경 실패: ' + error.message)
-        return
-      }
-
-      alert(`✅ 회원이 ${nextValue ? '활성화' : '비활성화'}되었습니다.`)
       await loadDetail()
     } finally {
       setSaving(false)
@@ -232,27 +211,33 @@ export default function AdminUserDetailPage({
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1">
-              <div className="text-[18px] font-extrabold text-slate-900">
-                {profile.full_name || '이름 없음'}
+              <div className="flex items-center gap-3 flex-wrap">
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={profile.name || 'profile'}
+                    className="w-14 h-14 rounded-full object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-lg font-bold">
+                    {(profile.name || 'U').slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+
+                <div className="min-w-0">
+                  <div className="text-[18px] font-extrabold text-slate-900">
+                    {profile.name || '이름 없음'}
+                  </div>
+
+                  <div className="text-[13px] text-slate-500 mt-1 break-all">
+                    {profile.email || '이메일 없음'}
+                  </div>
+                </div>
               </div>
 
-              <div className="text-[13px] text-slate-500 mt-1 break-all">
-                {profile.email || '이메일 없음'}
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap mt-3">
+              <div className="flex items-center gap-2 flex-wrap mt-4">
                 <span className="text-[11px] bg-slate-100 text-slate-700 px-2 py-1 rounded">
                   권한: {profile.role || 'user'}
-                </span>
-
-                <span
-                  className={`text-[11px] px-2 py-1 rounded ${
-                    profile.is_active
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-600'
-                  }`}
-                >
-                  {profile.is_active ? '활성' : '비활성'}
                 </span>
 
                 <span className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded">
@@ -260,9 +245,21 @@ export default function AdminUserDetailPage({
                 </span>
               </div>
 
+              {profile.phone && (
+                <div className="text-[12px] text-slate-500 mt-3">
+                  전화: {profile.phone}
+                </div>
+              )}
+
               {profile.created_at && (
                 <div className="text-[11px] text-slate-400 mt-3">
                   가입일: {new Date(profile.created_at).toLocaleDateString()}
+                </div>
+              )}
+
+              {profile.updated_at && (
+                <div className="text-[11px] text-slate-400 mt-1">
+                  수정일: {new Date(profile.updated_at).toLocaleDateString()}
                 </div>
               )}
             </div>
@@ -279,22 +276,6 @@ export default function AdminUserDetailPage({
                 <option value="admin">admin</option>
                 <option value="super_admin">super_admin</option>
               </select>
-
-              <button
-                onClick={toggleActive}
-                disabled={saving}
-                className={`text-[12px] font-bold px-3 py-2 rounded-lg ${
-                  profile.is_active
-                    ? 'bg-red-50 text-red-600'
-                    : 'bg-green-50 text-green-700'
-                } disabled:opacity-50`}
-              >
-                {saving
-                  ? '처리 중...'
-                  : profile.is_active
-                  ? '비활성화'
-                  : '활성화'}
-              </button>
             </div>
           </div>
         </div>
