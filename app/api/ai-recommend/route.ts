@@ -8,6 +8,8 @@ const sb = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+const ENABLE_AI = process.env.AI_ENABLED === 'true'
+
 type BusinessRow = {
   id: string
   name_kr?: string | null
@@ -29,7 +31,6 @@ function normalizeQuery(input: string) {
 
 function extractCategoryHints(q: string) {
   const lower = q.toLowerCase()
-
   const hints: string[] = []
 
   if (q.includes('치과') || lower.includes('dent')) hints.push('치과')
@@ -101,10 +102,8 @@ async function searchBusinesses(query: string): Promise<BusinessRow[]> {
   }
 
   const rows = data || []
-
   if (rows.length > 0) return rows
 
-  // fallback: category hint only
   if (categoryHints.length > 0) {
     const { data: fallbackData, error: fallbackError } = await sb
       .from('businesses')
@@ -129,7 +128,10 @@ async function searchBusinesses(query: string): Promise<BusinessRow[]> {
       .order('review_count', { ascending: false, nullsFirst: false })
       .limit(12)
 
-    if (fallbackError) throw new Error(fallbackError.message)
+    if (fallbackError) {
+      throw new Error(fallbackError.message)
+    }
+
     return fallbackData || []
   }
 
@@ -137,8 +139,17 @@ async function searchBusinesses(query: string): Promise<BusinessRow[]> {
 }
 
 async function generateSummary(userQuery: string, businesses: BusinessRow[]) {
-  if (!process.env.OPENAI_API_KEY) {
-    return '추천 문장 생성을 위해 OPENAI_API_KEY가 필요합니다.'
+  const apiKey = process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    return 'AI 추천은 현재 준비 중입니다. 아래 업소 리스트를 확인하세요.'
+  }
+
+  if (
+    apiKey.includes('여기에') ||
+    apiKey.includes('실제키')
+  ) {
+    return 'AI 추천은 현재 준비 중입니다. 아래 업소 리스트를 확인하세요.'
   }
 
   const businessText = businesses
@@ -166,7 +177,7 @@ ${businessText}
 - 반드시 위 후보 업소만 근거로 추천 문장을 작성한다.
 - 없는 사실을 만들지 않는다.
 - 한국어로 3~5문장으로 간단히 작성한다.
-- "가장 잘 맞는 곳", "무난한 선택", "VIP 우선 노출"처럼 비교해도 되지만 과장하지 않는다.
+- 과장하지 않는다.
 - 마지막 문장은 "아래 업소 리스트도 함께 확인하세요."로 끝낸다.
 `
 
@@ -174,7 +185,7 @@ ${businessText}
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: 'gpt-4.1-mini',
@@ -192,7 +203,7 @@ ${businessText}
   return (
     json.output_text ||
     json.output?.[0]?.content?.[0]?.text ||
-    '추천 문장을 생성하지 못했습니다.'
+    'AI 추천 문장을 생성하지 못했습니다. 아래 업소 리스트를 확인하세요.'
   )
 }
 
@@ -209,6 +220,19 @@ export async function POST(req: Request) {
     }
 
     const businesses = await searchBusinesses(query)
+
+    if (!ENABLE_AI) {
+      return NextResponse.json({
+        query,
+        aiEnabled: false,
+        summary:
+          businesses.length > 0
+            ? 'AI 추천은 현재 준비 중입니다. 아래 업소 리스트를 먼저 확인하세요.'
+            : '조건에 맞는 업소를 찾지 못했습니다. 검색어를 조금 더 구체적으로 입력해 주세요.',
+        businesses,
+      })
+    }
+
     const summary =
       businesses.length > 0
         ? await generateSummary(query, businesses)
@@ -216,6 +240,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       query,
+      aiEnabled: true,
       summary,
       businesses,
     })
