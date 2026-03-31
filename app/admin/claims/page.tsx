@@ -160,10 +160,13 @@ export default function AdminClaimsPage() {
         return
       }
 
-      const { error: ownerError } = await sb
-        .from('businesses')
-        .update({ owner_id: row.user_id })
-        .eq('id', row.business_id)
+const { error: ownerError } = await sb
+  .from('businesses')
+  .update({
+    owner_id: row.user_id,
+    approved: true,
+  })
+  .eq('id', row.business_id)
 
       if (ownerError) {
         alert('업소 owner 연결 실패: ' + ownerError.message)
