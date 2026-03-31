@@ -311,34 +311,41 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div className="flex flex-col gap-2 min-w-[140px]">
-                  <select
-                    defaultValue={u.role || 'user'}
-                    disabled={savingId === u.id}
-                    onChange={(e) => updateRole(u.id, e.target.value)}
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-white"
-                  >
-                    <option value="user">user</option>
-                    <option value="owner">owner</option>
-                    <option value="admin">admin</option>
-                    <option value="super_admin">super_admin</option>
-                  </select>
+  <a
+    href={`/admin/users/${u.id}`}
+    className="text-[12px] font-bold px-3 py-2 rounded-lg bg-indigo-50 text-indigo-600 text-center"
+  >
+    상세보기
+  </a>
 
-                  <button
-                    onClick={() => toggleActive(u)}
-                    disabled={savingId === u.id}
-                    className={`text-[12px] font-bold px-3 py-2 rounded-lg ${
-                      u.is_active
-                        ? 'bg-red-50 text-red-600'
-                        : 'bg-green-50 text-green-700'
-                    } disabled:opacity-50`}
-                  >
-                    {savingId === u.id
-                      ? '처리 중...'
-                      : u.is_active
-                      ? '비활성화'
-                      : '활성화'}
-                  </button>
-                </div>
+  <select
+    defaultValue={u.role || 'user'}
+    disabled={savingId === u.id}
+    onChange={(e) => updateRole(u.id, e.target.value)}
+    className="border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-white"
+  >
+    <option value="user">user</option>
+    <option value="owner">owner</option>
+    <option value="admin">admin</option>
+    <option value="super_admin">super_admin</option>
+  </select>
+
+  <button
+    onClick={() => toggleActive(u)}
+    disabled={savingId === u.id}
+    className={`text-[12px] font-bold px-3 py-2 rounded-lg ${
+      u.is_active
+        ? 'bg-red-50 text-red-600'
+        : 'bg-green-50 text-green-700'
+    } disabled:opacity-50`}
+  >
+    {savingId === u.id
+      ? '처리 중...'
+      : u.is_active
+      ? '비활성화'
+      : '활성화'}
+  </button>
+</div>
               </div>
             </div>
           ))
