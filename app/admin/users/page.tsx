@@ -11,9 +11,8 @@ const sb = createClient(
 type UserRow = {
   id: string
   email?: string | null
-  full_name?: string | null
+  name?: string | null
   role?: string | null
-  is_active?: boolean | null
   created_at?: string | null
   business_count?: number
 }
@@ -69,7 +68,7 @@ export default function AdminUsersPage() {
 
       let q = sb
         .from('user_profiles')
-        .select('id, email, full_name, role, is_active, created_at')
+        .select('id, email, name, role, created_at')
         .order('created_at', { ascending: false })
         .limit(200)
 
@@ -79,7 +78,7 @@ export default function AdminUsersPage() {
         q = q.or(
           [
             `email.ilike.%${term}%`,
-            `full_name.ilike.%${term}%`,
+            `name.ilike.%${term}%`,
             `role.ilike.%${term}%`,
           ].join(',')
         )
@@ -88,6 +87,7 @@ export default function AdminUsersPage() {
       const { data, error } = await q
 
       if (error) {
+        console.error('loadUsers error:', error)
         setErrorMsg('회원 목록을 불러오지 못했습니다.')
         setUsers([])
         setLoading(false)
@@ -100,10 +100,14 @@ export default function AdminUsersPage() {
       let businessCounts: Record<string, number> = {}
 
       if (ids.length > 0) {
-        const { data: businessesData } = await sb
+        const { data: businessesData, error: bizError } = await sb
           .from('businesses')
           .select('owner_id')
           .in('owner_id', ids)
+
+        if (bizError) {
+          console.error('business count load error:', bizError)
+        }
 
         ;(businessesData || []).forEach((b: any) => {
           if (!b.owner_id) return
@@ -118,6 +122,7 @@ export default function AdminUsersPage() {
 
       setUsers(merged)
     } catch (e) {
+      console.error('loadUsers catch:', e)
       setErrorMsg('회원 목록 로딩 중 오류가 발생했습니다.')
       setUsers([])
     } finally {
@@ -146,30 +151,6 @@ export default function AdminUsersPage() {
       }
 
       alert('✅ 권한이 변경되었습니다.')
-      await loadUsers()
-    } finally {
-      setSavingId('')
-    }
-  }
-
-  const toggleActive = async (user: UserRow) => {
-    const nextValue = !user.is_active
-    if (!confirm(`이 회원을 ${nextValue ? '활성화' : '비활성화'}할까요?`)) return
-
-    try {
-      setSavingId(user.id)
-
-      const { error } = await sb
-        .from('user_profiles')
-        .update({ is_active: nextValue })
-        .eq('id', user.id)
-
-      if (error) {
-        alert('상태 변경 실패: ' + error.message)
-        return
-      }
-
-      alert(`✅ 회원이 ${nextValue ? '활성화' : '비활성화'}되었습니다.`)
       await loadUsers()
     } finally {
       setSavingId('')
@@ -205,7 +186,7 @@ export default function AdminUsersPage() {
       <div className="bg-[#1a1a2e] px-5 pt-10 pb-6 flex items-center justify-between gap-2">
         <div>
           <h1 className="text-[22px] font-extrabold text-white">회원 관리</h1>
-          <p className="text-white/40 text-[12px] mt-0.5">권한, 상태, 업소 연결 현황 관리</p>
+          <p className="text-white/40 text-[12px] mt-0.5">권한 및 연결 업소 현황 관리</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -276,7 +257,7 @@ export default function AdminUsersPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="text-[15px] font-bold text-slate-800 truncate">
-                    {u.full_name || '이름 없음'}
+                    {u.name || '이름 없음'}
                   </div>
 
                   <div className="text-[12px] text-slate-500 mt-1 break-all">
@@ -286,16 +267,6 @@ export default function AdminUsersPage() {
                   <div className="flex items-center gap-2 flex-wrap mt-2">
                     <span className="text-[11px] bg-slate-100 text-slate-700 px-2 py-1 rounded">
                       권한: {u.role || 'user'}
-                    </span>
-
-                    <span
-                      className={`text-[11px] px-2 py-1 rounded ${
-                        u.is_active
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-600'
-                      }`}
-                    >
-                      {u.is_active ? '활성' : '비활성'}
                     </span>
 
                     <span className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded">
@@ -311,41 +282,25 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div className="flex flex-col gap-2 min-w-[140px]">
-  <a
-    href={`/admin/users/${u.id}`}
-    className="text-[12px] font-bold px-3 py-2 rounded-lg bg-indigo-50 text-indigo-600 text-center"
-  >
-    상세보기
-  </a>
+                  <a
+                    href={`/admin/users/${u.id}`}
+                    className="text-[12px] font-bold px-3 py-2 rounded-lg bg-indigo-50 text-indigo-600 text-center"
+                  >
+                    상세보기
+                  </a>
 
-  <select
-    defaultValue={u.role || 'user'}
-    disabled={savingId === u.id}
-    onChange={(e) => updateRole(u.id, e.target.value)}
-    className="border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-white"
-  >
-    <option value="user">user</option>
-    <option value="owner">owner</option>
-    <option value="admin">admin</option>
-    <option value="super_admin">super_admin</option>
-  </select>
-
-  <button
-    onClick={() => toggleActive(u)}
-    disabled={savingId === u.id}
-    className={`text-[12px] font-bold px-3 py-2 rounded-lg ${
-      u.is_active
-        ? 'bg-red-50 text-red-600'
-        : 'bg-green-50 text-green-700'
-    } disabled:opacity-50`}
-  >
-    {savingId === u.id
-      ? '처리 중...'
-      : u.is_active
-      ? '비활성화'
-      : '활성화'}
-  </button>
-</div>
+                  <select
+                    defaultValue={u.role || 'user'}
+                    disabled={savingId === u.id}
+                    onChange={(e) => updateRole(u.id, e.target.value)}
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-white"
+                  >
+                    <option value="user">user</option>
+                    <option value="owner">owner</option>
+                    <option value="admin">admin</option>
+                    <option value="super_admin">super_admin</option>
+                  </select>
+                </div>
               </div>
             </div>
           ))
