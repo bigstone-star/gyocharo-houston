@@ -8,341 +8,383 @@ const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-const FIELD_LABELS: Record<string, string> = {
-  name_kr: '한글 업소명',
-  name_en: '영문 업소명',
-  category_main: '대분류',
-  category_sub: '소분류',
-  address: '주소',
-  phone: '전화번호',
-  website: '웹사이트',
-  description_kr: '한글 소개글',
-  sns_instagram: '인스타그램',
-  sns_kakao: '카카오톡/오픈채팅',
+type EditRow = {
+  id: string
+  business_id: string
+  user_id: string
+  phone?: string | null
+  address?: string | null
+  website?: string | null
+  description_kr?: string | null
+  status?: string | null
+  original_data?: any
+  created_at?: string | null
+  reviewed_at?: string | null
+  reviewed_by?: string | null
+
+  business?: {
+    id: string
+    name_kr?: string | null
+    name_en?: string | null
+    phone?: string | null
+    address?: string | null
+    website?: string | null
+  } | null
+
+  user?: {
+    id: string
+    name?: string | null
+    email?: string | null
+  } | null
 }
 
-const EDIT_FIELDS = [
-  'name_kr',
-  'name_en',
-  'category_main',
-  'category_sub',
-  'address',
-  'phone',
-  'website',
-  'description_kr',
-  'sns_instagram',
-  'sns_kakao',
-]
-
 export default function AdminEditsPage() {
-  const [list, setList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [msg, setMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [rows, setRows] = useState<EditRow[]>([])
+  const [actingId, setActingId] = useState('')
 
   useEffect(() => {
+    const init = async () => {
+      try {
+        const { data: authData } = await sb.auth.getUser()
+
+        if (!authData.user) {
+          window.location.href = '/auth/login'
+          return
+        }
+
+        const { data: me, error: meError } = await sb
+          .from('user_profiles')
+          .select('role')
+          .eq('id', authData.user.id)
+          .maybeSingle()
+
+        if (meError) {
+          setErrorMsg('권한 정보를 불러오지 못했습니다.')
+          setLoading(false)
+          return
+        }
+
+        if (!me || !['admin', 'super_admin'].includes(me.role || '')) {
+          window.location.href = '/'
+          return
+        }
+
+        await loadRows()
+      } catch (e) {
+        console.error(e)
+        setErrorMsg('수정 요청 정보를 불러오는 중 오류가 발생했습니다.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
     init()
   }, [])
 
-  const init = async () => {
-    const { data: auth } = await sb.auth.getUser()
+  const loadRows = async () => {
+    try {
+      const { data, error } = await sb
+        .from('business_edits')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-    if (!auth.user) {
-      window.location.href = '/auth/login'
-      return
+      if (error) {
+        console.error('business_edits load error:', error)
+        setErrorMsg('수정 요청 목록을 불러오지 못했습니다.')
+        return
+      }
+
+      const editRows = (data || []) as EditRow[]
+
+      const businessIds = Array.from(
+        new Set(editRows.map((r) => r.business_id).filter(Boolean))
+      )
+
+      const userIds = Array.from(
+        new Set(editRows.map((r) => r.user_id).filter(Boolean))
+      )
+
+      let businessMap: Record<string, any> = {}
+      let userMap: Record<string, any> = {}
+
+      if (businessIds.length > 0) {
+        const { data: bizData } = await sb
+          .from('businesses')
+          .select('id, name_kr, name_en, phone, address, website')
+          .in('id', businessIds)
+
+        ;(bizData || []).forEach((b: any) => {
+          businessMap[b.id] = b
+        })
+      }
+
+      if (userIds.length > 0) {
+        const { data: userData } = await sb
+          .from('user_profiles')
+          .select('id, name, email')
+          .in('id', userIds)
+
+        ;(userData || []).forEach((u: any) => {
+          userMap[u.id] = u
+        })
+      }
+
+      const merged = editRows.map((r) => ({
+        ...r,
+        business: businessMap[r.business_id] || null,
+        user: userMap[r.user_id] || null,
+      }))
+
+      setRows(merged)
+    } catch (e) {
+      console.error('loadRows catch:', e)
+      setErrorMsg('수정 요청 목록 로딩 중 오류가 발생했습니다.')
     }
-
-    const { data: profile } = await sb
-      .from('user_profiles')
-      .select('role')
-      .eq('id', auth.user.id)
-      .maybeSingle()
-
-    if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
-      window.location.href = '/'
-      return
-    }
-
-    load()
   }
 
-  const load = async () => {
-    setLoading(true)
+  const approveEdit = async (row: EditRow) => {
+    const { data: authData } = await sb.auth.getUser()
+    if (!authData.user) return
 
-    const { data, error } = await sb
-      .from('business_edits')
-      .select(`
-        *,
-        businesses (
-          id,
-          name_kr,
-          name_en,
-          category_main,
-          category_sub,
-          address,
-          phone,
-          website,
-          description_kr,
-          sns_instagram,
-          sns_kakao
-        )
-      `)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      setMsg('수정 요청 목록을 불러오는 중 오류가 발생했습니다.')
-      setList([])
-    } else {
-      setList(data || [])
-    }
-
-    setLoading(false)
-  }
-
-  const approve = async (edit: any) => {
     if (!confirm('이 수정 요청을 승인할까요?')) return
 
-    const business = edit.businesses
-    if (!business?.id) {
-      alert('업소 정보가 올바르지 않습니다.')
-      return
+    try {
+      setActingId(row.id)
+
+      const businessUpdate: Record<string, any> = {}
+
+      if (row.phone !== undefined && row.phone !== null && row.phone !== '') {
+        businessUpdate.phone = row.phone
+      }
+      if (row.address !== undefined && row.address !== null && row.address !== '') {
+        businessUpdate.address = row.address
+      }
+      if (row.website !== undefined && row.website !== null && row.website !== '') {
+        businessUpdate.website = row.website
+      }
+      if (
+        row.description_kr !== undefined &&
+        row.description_kr !== null &&
+        row.description_kr !== ''
+      ) {
+        businessUpdate.description_kr = row.description_kr
+      }
+
+      if (Object.keys(businessUpdate).length > 0) {
+        const { error: updateBizError } = await sb
+          .from('businesses')
+          .update(businessUpdate)
+          .eq('id', row.business_id)
+
+        if (updateBizError) {
+          alert('업소 반영 실패: ' + updateBizError.message)
+          return
+        }
+      }
+
+      const { error: editUpdateError } = await sb
+        .from('business_edits')
+        .update({
+          status: 'approved',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: authData.user.id,
+        })
+        .eq('id', row.id)
+
+      if (editUpdateError) {
+        alert('수정 요청 상태 변경 실패: ' + editUpdateError.message)
+        return
+      }
+
+      alert('✅ 수정 요청이 승인되었습니다.')
+      await loadRows()
+    } finally {
+      setActingId('')
     }
-
-    const payload: Record<string, any> = {}
-    EDIT_FIELDS.forEach((field) => {
-      payload[field] = edit[field]
-    })
-
-    const { error: updateBusinessError } = await sb
-      .from('businesses')
-      .update(payload)
-      .eq('id', business.id)
-
-    if (updateBusinessError) {
-      alert('업소 업데이트 실패: ' + updateBusinessError.message)
-      return
-    }
-
-    const { error: updateEditError } = await sb
-      .from('business_edits')
-      .update({
-        status: 'approved',
-        admin_note: '수정 승인 완료',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', edit.id)
-
-    if (updateEditError) {
-      alert('요청 상태 업데이트 실패: ' + updateEditError.message)
-      return
-    }
-
-    setMsg('수정 요청을 승인했습니다.')
-    setTimeout(() => setMsg(''), 3000)
-    load()
   }
 
-  const reject = async (edit: any) => {
-    const note = window.prompt('반려 사유를 입력하세요.', edit.admin_note || '')
-    if (note === null) return
+  const rejectEdit = async (row: EditRow) => {
+    const { data: authData } = await sb.auth.getUser()
+    if (!authData.user) return
 
-    const { error } = await sb
-      .from('business_edits')
-      .update({
-        status: 'rejected',
-        admin_note: note || '반려됨',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', edit.id)
+    if (!confirm('이 수정 요청을 반려할까요?')) return
 
-    if (error) {
-      alert('반려 처리 실패: ' + error.message)
-      return
+    try {
+      setActingId(row.id)
+
+      const { error } = await sb
+        .from('business_edits')
+        .update({
+          status: 'rejected',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: authData.user.id,
+        })
+        .eq('id', row.id)
+
+      if (error) {
+        alert('반려 실패: ' + error.message)
+        return
+      }
+
+      alert('✅ 수정 요청이 반려되었습니다.')
+      await loadRows()
+    } finally {
+      setActingId('')
     }
-
-    setMsg('수정 요청을 반려했습니다.')
-    setTimeout(() => setMsg(''), 3000)
-    load()
   }
 
-  const renderFieldDiff = (field: string, currentValue: any, requestedValue: any) => {
-    const currentText = currentValue ?? ''
-    const requestedText = requestedValue ?? ''
-    const changed = String(currentText) !== String(requestedText)
-
+  if (loading) {
     return (
-      <div
-        key={field}
-        className={`rounded-lg border p-3 ${
-          changed ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-200 bg-slate-50'
-        }`}
-      >
-        <div className="text-[11px] font-bold text-slate-400 mb-2">
-          {FIELD_LABELS[field] || field}
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 mb-1">현재값</div>
-            <div className="text-[13px] text-slate-700 whitespace-pre-wrap break-words">
-              {currentText || '—'}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[10px] font-bold text-indigo-500 mb-1">요청값</div>
-            <div
-              className={`text-[13px] whitespace-pre-wrap break-words ${
-                changed ? 'text-indigo-700 font-semibold' : 'text-slate-500'
-              }`}
-            >
-              {requestedText || '—'}
-            </div>
-          </div>
+  if (errorMsg) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 text-center max-w-md w-full">
+          <div className="text-red-600 font-bold mb-3">{errorMsg}</div>
+          <a
+            href="/admin"
+            className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
+          >
+            관리자 홈
+          </a>
         </div>
       </div>
     )
   }
 
-  const pendingList = list.filter((item) => item.status === 'pending')
-  const doneList = list.filter((item) => item.status !== 'pending')
-
   return (
     <div className="min-h-screen bg-slate-100 max-w-4xl mx-auto pb-10">
-      <div className="bg-[#1a1a2e] px-5 pt-10 pb-6 flex items-center justify-between">
+      <div className="bg-[#1a1a2e] px-5 pt-10 pb-6 flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-[20px] font-extrabold text-white">✏️ 업소 수정 요청 관리</h1>
+          <h1 className="text-[22px] font-extrabold text-white">수정 요청 관리</h1>
           <p className="text-white/40 text-[12px] mt-0.5">
-            업주가 보낸 수정 요청을 승인하거나 반려합니다
+            업주가 보낸 수정 요청 승인 / 반려
           </p>
         </div>
 
-        <a
-          href="/admin"
-          className="text-white/40 text-[13px] border border-white/20 px-3 py-1.5 rounded-lg"
-        >
-          관리자
-        </a>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <a
+            href="/admin"
+            className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+          >
+            Admin
+          </a>
+          <a
+            href="/admin/businesses"
+            className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+          >
+            업소
+          </a>
+          <a
+            href="/"
+            className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+          >
+            홈
+          </a>
+        </div>
       </div>
 
-      {msg && (
-        <div className="mx-4 mt-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-[14px] font-bold text-green-700">
-          {msg}
-        </div>
-      )}
-
-      <div className="px-4 mt-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="text-[14px] font-bold text-slate-700">
-            대기 요청 {pendingList.length}건
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 mt-4 space-y-4">
-        {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : pendingList.length === 0 ? (
+      <div className="px-4 pt-4 space-y-3">
+        {rows.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
-            대기 중인 수정 요청이 없습니다.
+            수정 요청이 없습니다.
           </div>
         ) : (
-          pendingList.map((edit) => {
-            const business = edit.businesses
+          rows.map((row) => {
+            const currentPhone =
+              row.original_data?.phone ??
+              row.business?.phone ??
+              '없음'
+
+            const requestedPhone =
+              row.phone ?? '변경 없음'
 
             return (
-              <div key={edit.id} className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div>
-                    <div className="text-[15px] font-extrabold text-slate-800">
-                      {business?.name_kr || business?.name_en || '이름 없음'}
+              <div
+                key={row.id}
+                className="bg-white rounded-xl border border-slate-200 p-4"
+              >
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-bold text-slate-900">
+                      {row.business?.name_kr || row.business?.name_en || '업소명 없음'}
                     </div>
-                    <div className="text-[12px] text-slate-400 mt-1">
-                      요청일: {new Date(edit.created_at).toLocaleString()}
+
+                    <div className="text-[12px] text-slate-500 mt-1">
+                      요청자: {row.user?.name || '이름 없음'} · {row.user?.email || '이메일 없음'}
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      요청일: {row.created_at ? new Date(row.created_at).toLocaleString() : '-'}
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <div className="text-[11px] font-bold text-slate-400 mb-1">전화번호</div>
+                        <div className="text-[12px] text-slate-500">
+                          현재: <span className="font-bold text-slate-700">{currentPhone}</span>
+                        </div>
+                        <div className="text-[12px] text-indigo-600 mt-1">
+                          요청: <span className="font-bold">{requestedPhone}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`text-[11px] px-2 py-1 rounded font-bold ${
+                            row.status === 'approved'
+                              ? 'bg-green-100 text-green-700'
+                              : row.status === 'rejected'
+                              ? 'bg-red-100 text-red-600'
+                              : 'bg-yellow-100 text-yellow-700'
+                          }`}
+                        >
+                          {row.status === 'approved'
+                            ? '승인됨'
+                            : row.status === 'rejected'
+                            ? '반려됨'
+                            : '대기중'}
+                        </span>
+
+                        <a
+                          href={`/admin/businesses/${row.business_id}`}
+                          className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold"
+                        >
+                          업소 보기
+                        </a>
+                      </div>
                     </div>
                   </div>
 
-                  <span className="text-[10px] font-black px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
-                    대기중
-                  </span>
-                </div>
+                  <div className="flex flex-col gap-2 min-w-[120px]">
+                    <button
+                      onClick={() => approveEdit(row)}
+                      disabled={actingId === row.id || row.status !== 'pending'}
+                      className="bg-green-600 text-white px-3 py-2 rounded-lg text-[12px] font-bold disabled:opacity-50"
+                    >
+                      승인
+                    </button>
 
-                <div className="space-y-3">
-                  {EDIT_FIELDS.map((field) =>
-                    renderFieldDiff(field, business?.[field], edit?.[field])
-                  )}
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => approve(edit)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-[13px] font-bold"
-                  >
-                    승인
-                  </button>
-
-                  <button
-                    onClick={() => reject(edit)}
-                    className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-[13px] font-bold"
-                  >
-                    반려
-                  </button>
+                    <button
+                      onClick={() => rejectEdit(row)}
+                      disabled={actingId === row.id || row.status !== 'pending'}
+                      className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-[12px] font-bold disabled:opacity-50"
+                    >
+                      반려
+                    </button>
+                  </div>
                 </div>
               </div>
             )
           })
         )}
-      </div>
-
-      <div className="px-4 mt-6">
-        <div className="text-[13px] font-bold text-slate-500 mb-3">처리 완료 요청</div>
-
-        <div className="space-y-3">
-          {doneList.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400">
-              처리 완료된 요청이 없습니다.
-            </div>
-          ) : (
-            doneList.map((edit) => {
-              const business = edit.businesses
-
-              return (
-                <div
-                  key={edit.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4 opacity-80"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[14px] font-bold text-slate-800">
-                        {business?.name_kr || business?.name_en || '이름 없음'}
-                      </div>
-                      <div className="text-[12px] text-slate-400 mt-0.5">
-                        요청일: {new Date(edit.created_at).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <span
-                      className={`text-[10px] font-black px-2 py-1 rounded-full ${
-                        edit.status === 'approved'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-600'
-                      }`}
-                    >
-                      {edit.status === 'approved' ? '승인됨' : '반려됨'}
-                    </span>
-                  </div>
-
-                  {edit.admin_note && (
-                    <div className="mt-3 text-[12px] text-slate-500">
-                      관리자 메모: {edit.admin_note}
-                    </div>
-                  )}
-                </div>
-              )
-            })
-          )}
-        </div>
       </div>
     </div>
   )
