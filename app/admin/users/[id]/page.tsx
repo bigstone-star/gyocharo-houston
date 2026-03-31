@@ -27,10 +27,12 @@ type BusinessRow = {
   category_sub?: string | null
   phone?: string | null
   address?: string | null
+  website?: string | null
   is_active?: boolean | null
   approved?: boolean | null
   is_vip?: boolean | null
   vip_tier?: string | null
+  owner_id?: string | null
 }
 
 export default function AdminUserDetailPage({
@@ -116,10 +118,12 @@ export default function AdminUserDetailPage({
           category_sub,
           phone,
           address,
+          website,
           is_active,
           approved,
           is_vip,
-          vip_tier
+          vip_tier,
+          owner_id
         `)
         .eq('owner_id', userId)
         .order('created_at', { ascending: false })
@@ -163,15 +167,15 @@ export default function AdminUserDetailPage({
   }
 
   const searchBusinesses = async () => {
-    if (!searchBiz.trim()) {
+    const term = searchBiz.replace(/\s+/g, ' ').trim()
+
+    if (!term) {
       setBizResults([])
       return
     }
 
     try {
       setBizSearching(true)
-
-      const term = searchBiz.trim()
 
       const { data, error } = await sb
         .from('businesses')
@@ -183,18 +187,24 @@ export default function AdminUserDetailPage({
           category_sub,
           phone,
           address,
+          website,
           is_active,
           approved,
           is_vip,
-          vip_tier
+          vip_tier,
+          owner_id
         `)
-        .or([
-          `name_kr.ilike.%${term}%`,
-          `name_en.ilike.%${term}%`,
-          `category_main.ilike.%${term}%`,
-          `category_sub.ilike.%${term}%`,
-          `address.ilike.%${term}%`,
-        ].join(','))
+        .or(
+          [
+            `name_kr.ilike.%${term}%`,
+            `name_en.ilike.%${term}%`,
+            `phone.ilike.%${term}%`,
+            `address.ilike.%${term}%`,
+            `website.ilike.%${term}%`,
+            `category_main.ilike.%${term}%`,
+            `category_sub.ilike.%${term}%`,
+          ].join(',')
+        )
         .order('is_vip', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(10)
@@ -455,6 +465,12 @@ export default function AdminUserDetailPage({
                         {b.address}
                       </div>
                     )}
+
+                    {b.website && (
+                      <div className="text-[11px] text-slate-400 mt-1 truncate">
+                        {b.website}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -470,7 +486,7 @@ export default function AdminUserDetailPage({
                       disabled={bizActionId === b.id}
                       className="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-bold disabled:opacity-50"
                     >
-                      {b.is_vip ? 'VIP 해제' : 'VIP'}
+                      {b.is_vip ? 'VIP 해제' : 'VIP 등록'}
                     </button>
 
                     <button
@@ -495,7 +511,7 @@ export default function AdminUserDetailPage({
               value={searchBiz}
               onChange={(e) => setSearchBiz(e.target.value)}
               onKeyDown={(e: any) => e.key === 'Enter' && searchBusinesses()}
-              placeholder="업소 이름 검색"
+              placeholder="업소명, 전화번호, 주소, 웹사이트 검색"
               className="flex-1 border border-slate-200 px-3 py-2 rounded-lg text-[13px]"
             />
             <button
@@ -510,37 +526,71 @@ export default function AdminUserDetailPage({
           <div className="space-y-2">
             {searchBiz.trim() === '' ? (
               <div className="text-[12px] text-slate-400">
-                연결할 업소 이름을 입력하고 검색하세요.
+                웹사이트가 없어도 됩니다. 업소명, 전화번호, 주소로 검색할 수 있습니다.
               </div>
             ) : bizResults.length === 0 ? (
               <div className="text-[12px] text-slate-400">
                 검색 결과가 없습니다.
               </div>
             ) : (
-              bizResults.map((b) => (
-                <div
-                  key={b.id}
-                  className="flex items-center justify-between border border-slate-200 p-3 rounded-lg"
-                >
-                  <div className="min-w-0 pr-3">
-                    <div className="text-[13px] font-bold text-slate-800 truncate">
-                      {b.name_kr || b.name_en}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1 flex gap-2 flex-wrap">
-                      {b.category_main && <span>{b.category_main}</span>}
-                      {b.category_sub && <span>{b.category_sub}</span>}
-                    </div>
-                  </div>
+              bizResults.map((b) => {
+                const alreadyOwnedByThisUser = b.owner_id === userId
 
-                  <button
-                    onClick={() => assignBusiness(b.id)}
-                    disabled={bizAssigningId === b.id}
-                    className="text-[12px] bg-green-100 text-green-700 px-3 py-1.5 rounded font-bold disabled:opacity-50"
+                return (
+                  <div
+                    key={b.id}
+                    className="flex items-center justify-between border border-slate-200 p-3 rounded-lg"
                   >
-                    {bizAssigningId === b.id ? '연결 중...' : '연결'}
-                  </button>
-                </div>
-              ))
+                    <div className="min-w-0 pr-3">
+                      <div className="text-[13px] font-bold text-slate-800 truncate flex items-center gap-2 flex-wrap">
+                        <span>{b.name_kr || b.name_en}</span>
+
+                        {alreadyOwnedByThisUser && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                            현재 연결됨
+                          </span>
+                        )}
+
+                        {b.is_vip && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-300 text-amber-900">
+                            ⭐ {(b.vip_tier || 'vip').toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[11px] text-slate-400 mt-1 flex gap-2 flex-wrap">
+                        {b.category_main && <span>{b.category_main}</span>}
+                        {b.category_sub && <span>{b.category_sub}</span>}
+                        {b.phone && <span>{b.phone}</span>}
+                      </div>
+
+                      {b.address && (
+                        <div className="text-[11px] text-slate-400 mt-1 truncate">
+                          {b.address}
+                        </div>
+                      )}
+
+                      {b.website && (
+                        <div className="text-[11px] text-slate-400 mt-1 truncate">
+                          {b.website}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => assignBusiness(b.id)}
+                      disabled={bizAssigningId === b.id || alreadyOwnedByThisUser}
+                      className="text-[12px] bg-green-100 text-green-700 px-3 py-1.5 rounded font-bold disabled:opacity-50"
+                    >
+                      {alreadyOwnedByThisUser
+                        ? '연결됨'
+                        : bizAssigningId === b.id
+                        ? '연결 중...'
+                        : '연결'}
+                    </button>
+                  </div>
+                )
+              })
             )}
           </div>
         </div>
