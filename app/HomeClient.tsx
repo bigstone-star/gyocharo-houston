@@ -49,6 +49,7 @@ type Category = {
 export default function HomeClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [claimLoading, setClaimLoading] = useState(false)
 
   const currentCat = searchParams.get('cat') || '전체'
   const currentQuery = searchParams.get('q') || ''
@@ -435,6 +436,61 @@ export default function HomeClient() {
     await loadReviews(sel.id)
     alert(myReview ? '리뷰가 수정되었습니다.' : '리뷰가 등록되었습니다.')
   }
+
+  const requestOwnerClaim = async () => {
+  if (!user) {
+    alert('오너 자격 요청은 로그인 후 가능합니다.')
+    return
+  }
+
+  if (!sel?.id) return
+
+  const message = prompt(
+    '오너 자격 요청 메시지를 입력하세요.\n예: 안녕하세요. 이 업소의 실제 운영자입니다. 확인 후 오너 권한 부탁드립니다.'
+  )
+
+  if (!message || !message.trim()) return
+
+  try {
+    setClaimLoading(true)
+
+    const { data: existing, error: existingError } = await sb
+      .from('business_claim_requests')
+      .select('id, status')
+      .eq('business_id', sel.id)
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .limit(1)
+
+    if (existingError) {
+      alert('기존 요청 확인 실패: ' + existingError.message)
+      return
+    }
+
+    if (existing && existing.length > 0) {
+      alert('이미 대기 중인 오너 자격 요청이 있습니다.')
+      return
+    }
+
+    const { error } = await sb
+      .from('business_claim_requests')
+      .insert({
+        business_id: sel.id,
+        user_id: user.id,
+        message: message.trim(),
+        status: 'pending',
+      })
+
+    if (error) {
+      alert('오너 자격 요청 실패: ' + error.message)
+      return
+    }
+
+    alert('✅ 오너 자격 요청이 접수되었습니다. 관리자 확인 후 승인됩니다.')
+  } finally {
+    setClaimLoading(false)
+  }
+}
 
   const toggleFav = (id: string, e: any) => {
     e.stopPropagation()
@@ -1074,6 +1130,16 @@ export default function HomeClient() {
                 </a>
               )}
             </div>
+            <div className="px-5 pt-3">
+  <button
+    onClick={requestOwnerClaim}
+    disabled={claimLoading}
+    className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl text-[13px] font-bold disabled:opacity-50"
+  >
+    {claimLoading ? '요청 중...' : '이 업소는 제 것입니다'}
+  </button>
+</div>
+          
           </div>
         </div>
       )}
