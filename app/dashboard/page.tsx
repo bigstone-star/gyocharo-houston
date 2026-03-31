@@ -66,7 +66,7 @@ export default function DashboardPage() {
 
         setProfile(profileData)
 
-        const { data: biz, error } = await sb
+        const { data: biz, error: bizError } = await sb
           .from('businesses')
           .select(`
             id,
@@ -86,7 +86,7 @@ export default function DashboardPage() {
           .eq('owner_id', data.user.id)
           .order('created_at', { ascending: false })
 
-        if (error) {
+        if (bizError) {
           setErrorMsg('업소 정보를 불러오지 못했습니다.')
         } else {
           setBusinesses(biz || [])
@@ -181,7 +181,7 @@ export default function DashboardPage() {
           .join('\n')
 
         alert(
-          `동일하거나 유사한 업소가 여러 개 있습니다.\n\n${names}\n\n먼저 홈 화면에서 해당 업소 상세를 연 뒤 "이 업소는 제 것입니다" 버튼으로 요청해 주세요.`
+          `동일하거나 유사한 업소가 여러 개 있습니다.\n\n${names}\n\n먼저 홈 화면에서 해당 업소 상세를 열고 "이 업소는 제 것입니다" 버튼으로 요청해 주세요.`
         )
         return
       }
@@ -206,14 +206,12 @@ export default function DashboardPage() {
         return
       }
 
-      const { error } = await sb
-        .from('business_claim_requests')
-        .insert({
-          business_id: business.id,
-          user_id: user.id,
-          message: message.trim(),
-          status: 'pending',
-        })
+      const { error } = await sb.from('business_claim_requests').insert({
+        business_id: business.id,
+        user_id: user.id,
+        message: message.trim(),
+        status: 'pending',
+      })
 
       if (error) {
         alert('오너 자격 요청 실패: ' + error.message)
@@ -297,9 +295,7 @@ export default function DashboardPage() {
             <div className="text-[11px] text-slate-400 mt-3 leading-relaxed">
               홈 화면에서 해당 업소 상세를 열고
               <br />
-              <span className="font-bold text-slate-500">
-                “이 업소는 제 것입니다”
-              </span>
+              <span className="font-bold text-slate-500">“이 업소는 제 것입니다”</span>
               버튼으로도 요청할 수 있습니다.
             </div>
           </div>
@@ -341,21 +337,23 @@ export default function DashboardPage() {
                 )}
               </div>
 
-           <div className="flex gap-2 mt-4">
-             <a
-               href={`/?biz=${b.id}`}
-               className="flex-1 text-center bg-indigo-50 text-indigo-600 py-2 rounded-lg text-[13px] font-bold"
-               >
-               보기
-             </a>
-             <button
-               onClick={() => requestPhoneEdit(b)}
-               disabled={requestingId === b.id}
-               className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-[13px] font-bold disabled:opacity-50"
-               >
-               {requestingId === b.id ? '요청 중...' : '전화 수정 요청'}
-             </button>
-           </div>
+              <div className="flex gap-2 mt-4">
+                <a
+                  href={`/?biz=${b.id}`}
+                  className="flex-1 text-center bg-indigo-50 text-indigo-600 py-2 rounded-lg text-[13px] font-bold"
+                >
+                  보기
+                </a>
+
+                <button
+                  onClick={() => requestPhoneEdit(b)}
+                  disabled={requestingId === b.id}
+                  className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-[13px] font-bold disabled:opacity-50"
+                >
+                  {requestingId === b.id ? '요청 중...' : '전화 수정 요청'}
+                </button>
+              </div>
+            </div>
           ))
         )}
 
