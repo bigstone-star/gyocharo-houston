@@ -1,8 +1,6 @@
 'use client'
 
-import AiRecommendBox from './components/AiRecommendBox'
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const sb = createClient(
@@ -38,23 +36,20 @@ const REVIEW_TAGS = [
   '응답 빠름',
 ]
 
+const REGIONS = [
+  { value: 'houston', label: 'Houston' },
+  { value: 'dallas', label: 'Dallas' },
+  { value: 'fort_worth', label: 'Fort Worth' },
+]
+
 type Category = {
   id: string
   name: string
   icon: string
   sort_order: number
-  is_active?: boolean
 }
 
-export default function HomeClient() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [claimLoading, setClaimLoading] = useState(false)
-
-  const currentCat = searchParams.get('cat') || '전체'
-  const currentQuery = searchParams.get('q') || ''
-  const currentBizId = searchParams.get('biz') || ''
-
+export default function Home() {
   const [biz, setBiz] = useState<any[]>([])
   const [siteName, setSiteName] = useState('교차로 휴스턴')
   const [headerLogoUrl, setHeaderLogoUrl] = useState('')
@@ -62,15 +57,16 @@ export default function HomeClient() {
   const [showTextLogo, setShowTextLogo] = useState(false)
 
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState(currentQuery)
+  const [cat, setCat] = useState('전체')
+  const [search, setSearch] = useState('')
   const [sort, setSort] = useState('rating')
-
   const [sel, setSel] = useState<any>(null)
   const [favs, setFavs] = useState<string[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [user, setUser] = useState<any>(null)
   const [cats, setCats] = useState<Category[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  const [region, setRegion] = useState('houston')
 
   const [topBanners, setTopBanners] = useState<any[]>([])
   const [middleBanners, setMiddleBanners] = useState<any[]>([])
@@ -90,73 +86,13 @@ export default function HomeClient() {
     tags: [] as string[],
   })
 
+  const [claimLoading, setClaimLoading] = useState(false)
+
   const SORTS = ['rating', 'review_count', 'name_en']
   const SORT_LABELS: Record<string, string> = {
     rating: '평점순',
     review_count: '리뷰순',
     name_en: '이름순',
-  }
-
-  const resetModalState = () => {
-    setSel(null)
-    setReviews([])
-    setMyReview(null)
-    setReviewForm({
-      rating: 5,
-      review_text: '',
-      tags: [],
-    })
-  }
-
-  useEffect(() => {
-    if (currentQuery !== search) {
-      setSearch(currentQuery)
-    }
-  }, [currentQuery]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const buildUrl = (params: URLSearchParams) => {
-    const query = params.toString()
-    return query ? `/?${query}` : '/'
-  }
-
-  const changeCategory = (nextCat: string) => {
-    const params = new URLSearchParams(searchParams.toString())
-
-    if (nextCat === '전체') {
-      params.delete('cat')
-    } else {
-      params.set('cat', nextCat)
-    }
-
-    params.delete('biz')
-    router.push(buildUrl(params))
-  }
-
-  const updateSearchQuery = (nextSearch: string) => {
-    setSearch(nextSearch)
-
-    const params = new URLSearchParams(searchParams.toString())
-
-    if (nextSearch.trim()) {
-      params.set('q', nextSearch)
-    } else {
-      params.delete('q')
-    }
-
-    params.delete('biz')
-    router.push(buildUrl(params))
-  }
-
-  const openBusinessModal = (b: any) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('biz', b.id)
-    router.push(buildUrl(params))
-  }
-
-  const closeModal = () => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('biz')
-    router.push(buildUrl(params))
   }
 
   useEffect(() => {
@@ -176,30 +112,16 @@ export default function HomeClient() {
       setFavs(JSON.parse(localStorage.getItem('gj_favs') || '[]'))
     } catch {}
 
+    try {
+      const savedRegion = localStorage.getItem('gj_region')
+      if (savedRegion) setRegion(savedRegion)
+    } catch {}
+
     sb.auth.getUser().then(({ data }) => setUser(data.user))
 
     const {
       data: { subscription },
     } = sb.auth.onAuthStateChange((_, s) => setUser(s?.user ?? null))
-
-    sb.from('businesses')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true)
-      .then(({ count, error }) => {
-        if (!error && count !== null) setTotalCount(count)
-      })
-
-    sb.from('businesses')
-      .select('category_main')
-      .eq('is_active', true)
-      .then(({ data }) => {
-        if (!data) return
-        const c: Record<string, number> = { 전체: data.length }
-        data.forEach((b: any) => {
-          c[b.category_main] = (c[b.category_main] || 0) + 1
-        })
-        setCounts(c)
-      })
 
     sb.from('categories')
       .select('*')
@@ -235,6 +157,37 @@ export default function HomeClient() {
   }, [])
 
   useEffect(() => {
+    try {
+      localStorage.setItem('gj_region', region)
+    } catch {}
+  }, [region])
+
+  useEffect(() => {
+    sb.from('businesses')
+      .select('category_main')
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('metro_area', region)
+      .then(({ data }) => {
+        if (!data) return
+        const c: Record<string, number> = { 전체: data.length }
+        data.forEach((b: any) => {
+          c[b.category_main] = (c[b.category_main] || 0) + 1
+        })
+        setCounts(c)
+      })
+
+    sb.from('businesses')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('metro_area', region)
+      .then(({ count, error }) => {
+        if (!error && count !== null) setTotalCount(count)
+      })
+  }, [region])
+
+  useEffect(() => {
     if (topBanners.length <= 1) return
     const timer = setInterval(() => {
       setTopBannerIndex((prev) => (prev + 1) % topBanners.length)
@@ -261,13 +214,16 @@ export default function HomeClient() {
   const load = useCallback(async () => {
     setLoading(true)
 
-    let q = sb.from('businesses').select('*').eq('is_active', true)
+    let q = sb
+      .from('businesses')
+      .select('*')
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('metro_area', region)
 
-    if (currentCat !== '전체') {
-      q = q.eq('category_main', currentCat)
-    }
+    if (cat !== '전체') q = q.eq('category_main', cat)
 
-    const normalizedSearch = currentQuery.replace(/\s+/g, ' ').trim()
+    const normalizedSearch = search.replace(/\s+/g, ' ').trim()
 
     if (normalizedSearch) {
       q = q.or(
@@ -278,17 +234,15 @@ export default function HomeClient() {
           `category_sub.ilike.%${normalizedSearch}%`,
           `address.ilike.%${normalizedSearch}%`,
           `phone.ilike.%${normalizedSearch}%`,
+          `city.ilike.%${normalizedSearch}%`,
         ].join(',')
       )
     }
 
     q = q.order('is_vip', { ascending: false })
 
-    if (sort === 'name_en') {
-      q = q.order('name_en', { ascending: true })
-    } else {
-      q = q.order(sort as any, { ascending: false, nullsFirst: false })
-    }
+    if (sort === 'name_en') q = q.order('name_en', { ascending: true })
+    else q = q.order(sort as any, { ascending: false, nullsFirst: false })
 
     const { data, error } = await q.limit(300)
 
@@ -300,7 +254,7 @@ export default function HomeClient() {
     }
 
     setLoading(false)
-  }, [currentCat, currentQuery, sort])
+  }, [cat, search, sort, region])
 
   useEffect(() => {
     load()
@@ -359,35 +313,12 @@ export default function HomeClient() {
     [user]
   )
 
-  useEffect(() => {
-    if (!currentBizId) {
-      if (sel) resetModalState()
-      return
-    }
-
-    if (biz.length === 0) return
-    if (sel?.id === currentBizId) return
-
-    const target = biz.find((b) => b.id === currentBizId)
-
-    if (target) {
-      setSel(target)
-      loadReviews(target.id)
-    } else {
-      const params = new URLSearchParams(searchParams.toString())
-      params.delete('biz')
-      router.replace(buildUrl(params))
-    }
-  }, [currentBizId, biz, sel, loadReviews, router, searchParams])
-
   const toggleReviewTag = (tag: string) => {
     setReviewForm((prev) => {
       const exists = prev.tags.includes(tag)
       return {
         ...prev,
-        tags: exists
-          ? prev.tags.filter((t) => t !== tag)
-          : [...prev.tags, tag],
+        tags: exists ? prev.tags.filter((t) => t !== tag) : [...prev.tags, tag],
       }
     })
   }
@@ -438,59 +369,57 @@ export default function HomeClient() {
   }
 
   const requestOwnerClaim = async () => {
-  if (!user) {
-    alert('오너 자격 요청은 로그인 후 가능합니다.')
-    return
-  }
-
-  if (!sel?.id) return
-
-  const message = prompt(
-    '오너 자격 요청 메시지를 입력하세요.\n예: 안녕하세요. 이 업소의 실제 운영자입니다. 확인 후 오너 권한 부탁드립니다.'
-  )
-
-  if (!message || !message.trim()) return
-
-  try {
-    setClaimLoading(true)
-
-    const { data: existing, error: existingError } = await sb
-      .from('business_claim_requests')
-      .select('id, status')
-      .eq('business_id', sel.id)
-      .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .limit(1)
-
-    if (existingError) {
-      alert('기존 요청 확인 실패: ' + existingError.message)
+    if (!user) {
+      alert('오너 자격 요청은 로그인 후 가능합니다.')
       return
     }
 
-    if (existing && existing.length > 0) {
-      alert('이미 대기 중인 오너 자격 요청이 있습니다.')
-      return
-    }
+    if (!sel?.id) return
 
-    const { error } = await sb
-      .from('business_claim_requests')
-      .insert({
+    const message = prompt(
+      '오너 자격 요청 메시지를 입력하세요.\n예: 안녕하세요. 이 업소의 실제 운영자입니다. 확인 후 오너 권한 부탁드립니다.'
+    )
+
+    if (!message || !message.trim()) return
+
+    try {
+      setClaimLoading(true)
+
+      const { data: existing, error: existingError } = await sb
+        .from('business_claim_requests')
+        .select('id, status')
+        .eq('business_id', sel.id)
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .limit(1)
+
+      if (existingError) {
+        alert('기존 요청 확인 실패: ' + existingError.message)
+        return
+      }
+
+      if (existing && existing.length > 0) {
+        alert('이미 대기 중인 오너 자격 요청이 있습니다.')
+        return
+      }
+
+      const { error } = await sb.from('business_claim_requests').insert({
         business_id: sel.id,
         user_id: user.id,
         message: message.trim(),
         status: 'pending',
       })
 
-    if (error) {
-      alert('오너 자격 요청 실패: ' + error.message)
-      return
-    }
+      if (error) {
+        alert('오너 자격 요청 실패: ' + error.message)
+        return
+      }
 
-    alert('✅ 오너 자격 요청이 접수되었습니다. 관리자 확인 후 승인됩니다.')
-  } finally {
-    setClaimLoading(false)
+      alert('✅ 오너 자격 요청이 접수되었습니다. 관리자 확인 후 승인됩니다.')
+    } finally {
+      setClaimLoading(false)
+    }
   }
-}
 
   const toggleFav = (id: string, e: any) => {
     e.stopPropagation()
@@ -521,6 +450,26 @@ export default function HomeClient() {
       console.error('banner click count update failed:', error)
     }
   }
+
+  const closeModal = () => {
+    setSel(null)
+    setReviews([])
+    setMyReview(null)
+    setReviewForm({
+      rating: 5,
+      review_text: '',
+      tags: [],
+    })
+  }
+
+  const currentTopBanner =
+    topBanners.length > 0 ? topBanners[topBannerIndex] : null
+
+  const currentMiddleBanner =
+    middleBanners.length > 0 ? middleBanners[middleBannerIndex] : null
+
+  const currentBottomBanner =
+    bottomBanners.length > 0 ? bottomBanners[bottomBannerIndex] : null
 
   const renderBanner = (banner: any, className = '') => {
     if (!banner) return null
@@ -557,19 +506,9 @@ export default function HomeClient() {
 
   const avgRating =
     reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length
+      ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) /
+        reviews.length
       : 0
-
-  const currentTopBanner =
-    topBanners.length > 0 ? topBanners[topBannerIndex] : null
-
-  const currentMiddleBanner =
-    middleBanners.length > 0 ? middleBanners[middleBannerIndex] : null
-
-  const currentBottomBanner =
-    bottomBanners.length > 0 ? bottomBanners[bottomBannerIndex] : null
-
-  const displayCount = biz.length
 
   return (
     <div className="min-h-screen bg-slate-100 max-w-lg mx-auto">
@@ -590,17 +529,13 @@ export default function HomeClient() {
             )}
 
             <p className="text-[11px] text-white/40 mt-0.5">
-              Houston 한인 비즈니스
+              {REGIONS.find((r) => r.value === region)?.label}, TX · 한인 비즈니스 디렉토리
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-bold text-amber-400 bg-amber-400/15 px-3 py-1 rounded-full">
-              {currentQuery
-                ? `검색 ${displayCount}개`
-                : currentCat !== '전체'
-                ? `${currentCat} ${displayCount}개`
-                : `${displayCount}개`}
+              {totalCount}개
             </span>
 
             {user ? (
@@ -631,11 +566,26 @@ export default function HomeClient() {
         </div>
 
         <div className="px-4 pb-3 flex gap-2">
+          <select
+            value={region}
+            onChange={(e) => {
+              setRegion(e.target.value)
+              setCat('전체')
+            }}
+            className="bg-white/10 border border-white/15 rounded-lg px-3 text-[12px] font-bold text-white/80 h-10"
+          >
+            {REGIONS.map((r) => (
+              <option key={r.value} value={r.value} className="text-black">
+                {r.label}
+              </option>
+            ))}
+          </select>
+
           <div className="flex-1 bg-white/10 border border-white/15 rounded-lg flex items-center px-3 gap-2">
             <span className="text-white/40">🔍</span>
             <input
               value={search}
-              onChange={(e) => updateSearchQuery(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="업소명, 한글명, 업종, 주소, 전화번호 검색..."
               className="bg-transparent border-none outline-none text-white text-[14px] w-full py-2.5 placeholder:text-white/30"
             />
@@ -652,15 +602,9 @@ export default function HomeClient() {
         </div>
       </header>
 
-      {currentTopBanner && (
-        <div className="px-3 pt-3">
-          {renderBanner(currentTopBanner)}
-        </div>
-      )}
-<div className="px-3 pt-3">
-  <AiRecommendBox />
-</div>
-      {currentCat === '전체' ? (
+      {currentTopBanner && <div className="px-3 pt-3">{renderBanner(currentTopBanner)}</div>}
+
+      {cat === '전체' ? (
         <div className="bg-white border-b border-slate-200 px-3.5 py-3.5 mt-3">
           <div className="text-[11px] font-bold text-slate-400 tracking-widest mb-2.5">
             카테고리
@@ -675,7 +619,7 @@ export default function HomeClient() {
               {cats.map((c) => (
                 <button
                   key={c.name}
-                  onClick={() => changeCategory(c.name)}
+                  onClick={() => setCat(c.name)}
                   className="flex items-center gap-2 px-3 py-2.5 rounded-lg border-[1.5px] border-slate-200 bg-white transition-all active:scale-[.97] text-left hover:bg-slate-50"
                 >
                   <span className="text-[20px] w-6 text-center flex-shrink-0">
@@ -697,12 +641,12 @@ export default function HomeClient() {
       ) : (
         <div className="bg-white border-b border-slate-200 px-4 py-3 mt-3">
           <button
-            onClick={() => changeCategory('전체')}
+            onClick={() => setCat('전체')}
             className="text-[13px] font-bold text-slate-700 truncate text-left"
           >
             <span className="text-indigo-600">전체</span>
             <span className="text-slate-300 mx-1">&gt;</span>
-            <span>{currentCat}</span>
+            <span>{cat}</span>
           </button>
         </div>
       )}
@@ -727,9 +671,7 @@ export default function HomeClient() {
             <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : biz.length === 0 ? (
-          <div className="text-center py-20 text-slate-400">
-            검색 결과가 없습니다
-          </div>
+          <div className="text-center py-20 text-slate-400">검색 결과가 없습니다</div>
         ) : (
           biz.map((b, index) => {
             const catInfo =
@@ -741,11 +683,12 @@ export default function HomeClient() {
             return (
               <div key={b.id}>
                 <div
-                  onClick={() => openBusinessModal(b)}
+                  onClick={async () => {
+                    setSel(b)
+                    await loadReviews(b.id)
+                  }}
                   className={`bg-white rounded-xl border px-4 py-3.5 flex gap-3 cursor-pointer active:scale-[.99] transition-all ${
-                    b.is_vip
-                      ? 'border-amber-300 bg-amber-50/30'
-                      : 'border-slate-200'
+                    b.is_vip ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'
                   }`}
                 >
                   <div
@@ -790,7 +733,12 @@ export default function HomeClient() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2.5 mt-1">
+                    <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+                      {b.city && (
+                        <span className="text-[11px] font-bold text-slate-400">
+                          {b.city}
+                        </span>
+                      )}
                       {b.rating > 0 && (
                         <span className="text-[12px] font-bold text-slate-800">
                           ★{Number(b.rating).toFixed(1)}{' '}
@@ -812,9 +760,7 @@ export default function HomeClient() {
                     className="flex-shrink-0 self-start pt-0.5 p-1"
                   >
                     <span
-                      className={`text-xl ${
-                        isFav ? 'text-red-500' : 'text-slate-300'
-                      }`}
+                      className={`text-xl ${isFav ? 'text-red-500' : 'text-slate-300'}`}
                     >
                       {isFav ? '♥' : '♡'}
                     </span>
@@ -822,9 +768,7 @@ export default function HomeClient() {
                 </div>
 
                 {currentMiddleBanner && index === 3 && (
-                  <div className="pt-2">
-                    {renderBanner(currentMiddleBanner)}
-                  </div>
+                  <div className="pt-2">{renderBanner(currentMiddleBanner)}</div>
                 )}
               </div>
             )
@@ -887,7 +831,7 @@ export default function HomeClient() {
                 <div className="mt-2">
                   <div className="flex items-center gap-2">
                     <span className="text-amber-400">
-                      {'★'.repeat(Math.round(Number(sel.rating)))}
+                      {'★'.repeat(Math.max(1, Math.round(Number(sel.rating))))}
                     </span>
                     <span className="font-bold">{Number(sel.rating).toFixed(1)}</span>
                     <span className="text-[13px] text-slate-400">
@@ -933,10 +877,7 @@ export default function HomeClient() {
                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">
                       전화
                     </div>
-                    <a
-                      href={'tel:' + sel.phone}
-                      className="text-[14px] font-semibold text-indigo-600"
-                    >
+                    <a href={'tel:' + sel.phone} className="text-[14px] font-semibold text-indigo-600">
                       {sel.phone}
                     </a>
                   </div>
@@ -988,9 +929,7 @@ export default function HomeClient() {
                         <button
                           key={n}
                           type="button"
-                          onClick={() =>
-                            setReviewForm((prev) => ({ ...prev, rating: n }))
-                          }
+                          onClick={() => setReviewForm((prev) => ({ ...prev, rating: n }))}
                           className={`text-2xl ${
                             n <= reviewForm.rating ? 'text-amber-400' : 'text-slate-300'
                           }`}
@@ -1063,9 +1002,7 @@ export default function HomeClient() {
                   <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : reviews.length === 0 ? (
-                <div className="text-[13px] text-slate-400 py-4">
-                  첫 리뷰를 남겨보세요.
-                </div>
+                <div className="text-[13px] text-slate-400 py-4">첫 리뷰를 남겨보세요.</div>
               ) : (
                 <div className="space-y-3 pb-2">
                   {reviews.map((r) => (
@@ -1130,16 +1067,16 @@ export default function HomeClient() {
                 </a>
               )}
             </div>
+
             <div className="px-5 pt-3">
-  <button
-    onClick={requestOwnerClaim}
-    disabled={claimLoading}
-    className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl text-[13px] font-bold disabled:opacity-50"
-  >
-    {claimLoading ? '요청 중...' : '이 업소는 제 것입니다'}
-  </button>
-</div>
-          
+              <button
+                onClick={requestOwnerClaim}
+                disabled={claimLoading}
+                className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl text-[13px] font-bold disabled:opacity-50"
+              >
+                {claimLoading ? '요청 중...' : '이 업소는 제 것입니다'}
+              </button>
+            </div>
           </div>
         </div>
       )}
