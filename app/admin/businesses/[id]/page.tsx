@@ -14,6 +14,108 @@ type Category = {
   is_active?: boolean
 }
 
+function normalizeCityFromAddress(address?: string | null) {
+  if (!address) return ''
+  const m = address.match(/,\s*([^,]+),\s*TX\b/i)
+  return m?.[1]?.trim() || ''
+}
+
+function inferMetroArea(city?: string | null, address?: string | null) {
+  const baseCity = (city || normalizeCityFromAddress(address) || '').trim()
+  const c = baseCity.toLowerCase()
+
+  const houstonCities = new Set([
+    'houston',
+    'katy',
+    'sugar land',
+    'pearland',
+    'cypress',
+    'spring',
+    'tomball',
+    'the woodlands',
+    'missouri city',
+    'stafford',
+    'bellaire',
+    'humble',
+    'pasadena',
+    'league city',
+    'richmond',
+    'rosenberg',
+    'fulshear',
+    'brookshire',
+    'conroe',
+    'klein',
+    'channelview',
+    'la porte',
+    'friendswood',
+    'webster',
+    'deer park',
+    'baytown',
+  ])
+
+  const dallasCities = new Set([
+    'dallas',
+    'plano',
+    'carrollton',
+    'frisco',
+    'irving',
+    'richardson',
+    'coppell',
+    'farmers branch',
+    'the colony',
+    'mesquite',
+    'mckinney',
+    'garland',
+    'flower mound',
+    'rockwall',
+    'lewisville',
+    'addison',
+    'allen',
+    'rowlett',
+    'denton',
+  ])
+
+  const fortWorthCities = new Set([
+    'fort worth',
+    'arlington',
+    'euless',
+    'bedford',
+    'hurst',
+    'grapevine',
+    'southlake',
+    'colleyville',
+    'north richland hills',
+    'keller',
+    'haltom city',
+    'grand prairie',
+  ])
+
+  const centralTexasCities = new Set([
+    'austin',
+    'san antonio',
+    'killeen',
+    'round rock',
+    'cedar park',
+    'georgetown',
+    'pflugerville',
+    'temple',
+    'belton',
+    'harker heights',
+    'copperas cove',
+    'new braunfels',
+    'schertz',
+    'cibolo',
+    'leander',
+  ])
+
+  if (houstonCities.has(c)) return 'houston'
+  if (dallasCities.has(c)) return 'dallas'
+  if (fortWorthCities.has(c)) return 'fort_worth'
+  if (centralTexasCities.has(c)) return 'central_texas'
+
+  return null
+}
+
 export default function AdminBusinessEditPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -81,6 +183,10 @@ export default function AdminBusinessEditPage({ params }: { params: { id: string
 
     setSaving(true)
 
+    const inferredCity = normalizeCityFromAddress(biz.address || '')
+    const nextCity = inferredCity || biz.city || ''
+    const nextMetroArea = inferMetroArea(nextCity, biz.address || '') || biz.metro_area || null
+
     const { error } = await sb
       .from('businesses')
       .update({
@@ -89,6 +195,8 @@ export default function AdminBusinessEditPage({ params }: { params: { id: string
         category_main: biz.category_main || '',
         category_sub: biz.category_sub || '',
         address: biz.address || '',
+        city: nextCity,
+        metro_area: nextMetroArea,
         phone: biz.phone || '',
         website: biz.website || '',
         description_kr: biz.description_kr || '',
@@ -105,6 +213,12 @@ export default function AdminBusinessEditPage({ params }: { params: { id: string
       alert('저장 실패: ' + error.message)
       return
     }
+
+    setBiz((prev: any) => ({
+      ...prev,
+      city: nextCity,
+      metro_area: nextMetroArea,
+    }))
 
     alert('✅ 업소 정보가 저장됐습니다.')
   }
@@ -126,10 +240,10 @@ export default function AdminBusinessEditPage({ params }: { params: { id: string
         <div className="bg-white rounded-xl border border-slate-200 p-6 text-center max-w-md w-full">
           <div className="text-red-600 font-bold mb-3">{errorMsg}</div>
           <a
-            href="/admin"
+            href="/admin/businesses"
             className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
           >
-            관리자 홈으로
+            업소 목록으로
           </a>
         </div>
       </div>
@@ -144,7 +258,7 @@ export default function AdminBusinessEditPage({ params }: { params: { id: string
           <p className="text-white/40 text-[12px] mt-0.5">관리자용 업소 편집 페이지</p>
         </div>
         <a
-          href="/admin"
+          href="/admin/businesses"
           className="text-white/40 text-[13px] border border-white/20 px-3 py-1.5 rounded-lg"
         >
           목록
@@ -212,6 +326,26 @@ export default function AdminBusinessEditPage({ params }: { params: { id: string
               onChange={(e) => upd('address', e.target.value)}
               className={fs}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-bold text-slate-500 block mb-1.5">도시(자동)</label>
+              <input
+                value={normalizeCityFromAddress(biz?.address || '') || biz?.city || ''}
+                readOnly
+                className={fs + ' bg-slate-50 text-slate-500'}
+              />
+            </div>
+
+            <div>
+              <label className="text-[12px] font-bold text-slate-500 block mb-1.5">권역(자동)</label>
+              <input
+                value={inferMetroArea(normalizeCityFromAddress(biz?.address || '') || biz?.city || '', biz?.address || '') || biz?.metro_area || ''}
+                readOnly
+                className={fs + ' bg-slate-50 text-slate-500'}
+              />
+            </div>
           </div>
 
           <div>
