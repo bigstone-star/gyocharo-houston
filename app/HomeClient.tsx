@@ -95,13 +95,15 @@ export default function Home() {
   const [totalCount, setTotalCount] = useState(0)
   const [region, setRegion] = useState('houston')
 
-  const [topBanners, setTopBanners] = useState<any[]>([])
-  const [middleBanners, setMiddleBanners] = useState<any[]>([])
-  const [bottomBanners, setBottomBanners] = useState<any[]>([])
+const [topBanners, setTopBanners] = useState<any[]>([])
+const [middleBanners, setMiddleBanners] = useState<any[]>([])
+const [bottomBanners, setBottomBanners] = useState<any[]>([])
+const [categoryTopBanners, setCategoryTopBanners] = useState<any[]>([])
 
-  const [topBannerIndex, setTopBannerIndex] = useState(0)
-  const [middleBannerIndex, setMiddleBannerIndex] = useState(0)
-  const [bottomBannerIndex, setBottomBannerIndex] = useState(0)
+const [topBannerIndex, setTopBannerIndex] = useState(0)
+const [middleBannerIndex, setMiddleBannerIndex] = useState(0)
+const [bottomBannerIndex, setBottomBannerIndex] = useState(0)
+const [categoryTopBannerIndex, setCategoryTopBannerIndex] = useState(0)
 
   const [reviews, setReviews] = useState<any[]>([])
   const [reviewLoading, setReviewLoading] = useState(false)
@@ -238,33 +240,37 @@ export default function Home() {
       })
   }, [region])
 
-  useEffect(() => {
-    sb.from('banners')
-      .select('*')
-      .eq('is_active', true)
-      .eq('metro_area', region)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error || !data) {
-          setTopBanners([])
-          setMiddleBanners([])
-          setBottomBanners([])
-          return
-        }
+useEffect(() => {
+  sb.from('banners')
+    .select('*')
+    .eq('is_active', true)
+    .eq('metro_area', region)
+    .order('created_at', { ascending: false })
+    .then(({ data, error }) => {
+      if (error || !data) {
+        setTopBanners([])
+        setMiddleBanners([])
+        setBottomBanners([])
+        setCategoryTopBanners([])
+        return
+      }
 
-        const top = data.filter((b: any) => b.position === 'home_top')
-        const middle = data.filter((b: any) => b.position === 'home_middle')
-        const bottom = data.filter((b: any) => b.position === 'home_bottom')
+      const top = data.filter((b: any) => b.position === 'home_top')
+      const middle = data.filter((b: any) => b.position === 'home_middle')
+      const bottom = data.filter((b: any) => b.position === 'home_bottom')
+      const categoryTop = data.filter((b: any) => b.position === 'category_top')
 
-        setTopBanners(top)
-        setMiddleBanners(middle)
-        setBottomBanners(bottom)
+      setTopBanners(top)
+      setMiddleBanners(middle)
+      setBottomBanners(bottom)
+      setCategoryTopBanners(categoryTop)
 
-        setTopBannerIndex(0)
-        setMiddleBannerIndex(0)
-        setBottomBannerIndex(0)
-      })
-  }, [region])
+      setTopBannerIndex(0)
+      setMiddleBannerIndex(0)
+      setBottomBannerIndex(0)
+      setCategoryTopBannerIndex(0)
+    })
+}, [region])
 
   useEffect(() => {
     if (topBanners.length <= 1) return
@@ -290,6 +296,14 @@ export default function Home() {
     return () => clearInterval(timer)
   }, [bottomBanners])
 
+  useEffect(() => {
+  if (categoryTopBanners.length <= 1) return
+  const timer = setInterval(() => {
+    setCategoryTopBannerIndex((prev) => (prev + 1) % categoryTopBanners.length)
+  }, 4000)
+  return () => clearInterval(timer)
+}, [categoryTopBanners])
+  
   const load = useCallback(async () => {
     setLoading(true)
 
@@ -327,9 +341,6 @@ q = q
 if (sort === 'name_en') {
   q = q.order('name_en', { ascending: true })
 }
-    
-    if (sort === 'name_en') q = q.order('name_en', { ascending: true })
-    else q = q.order(sort as any, { ascending: false, nullsFirst: false })
 
     const { data, error } = await q.limit(300)
 
@@ -551,13 +562,16 @@ if (sort === 'name_en') {
   }
 
   const currentTopBanner =
-    topBanners.length > 0 ? topBanners[topBannerIndex] : null
+  topBanners.length > 0 ? topBanners[topBannerIndex] : null
 
-  const currentMiddleBanner =
-    middleBanners.length > 0 ? middleBanners[middleBannerIndex] : null
+const currentMiddleBanner =
+  middleBanners.length > 0 ? middleBanners[middleBannerIndex] : null
 
-  const currentBottomBanner =
-    bottomBanners.length > 0 ? bottomBanners[bottomBannerIndex] : null
+const currentBottomBanner =
+  bottomBanners.length > 0 ? bottomBanners[bottomBannerIndex] : null
+
+const currentCategoryTopBanner =
+  categoryTopBanners.length > 0 ? categoryTopBanners[categoryTopBannerIndex] : null
 
   const renderBanner = (banner: any, className = '') => {
     if (!banner) return null
@@ -739,18 +753,24 @@ if (sort === 'name_en') {
             </div>
           )}
         </div>
-      ) : (
-        <div className="bg-white border-b border-slate-200 px-4 py-3 mt-3">
-          <button
-            onClick={() => setCat('전체')}
-            className="text-[13px] font-bold text-slate-700 truncate text-left"
-          >
-            <span className="text-indigo-600">전체</span>
-            <span className="text-slate-300 mx-1">&gt;</span>
-            <span>{cat}</span>
-          </button>
-        </div>
-      )}
+     ) : (
+  <>
+    <div className="bg-white border-b border-slate-200 px-4 py-3 mt-3">
+      <button
+        onClick={() => setCat('전체')}
+        className="text-[13px] font-bold text-slate-700 truncate text-left"
+      >
+        <span className="text-indigo-600">전체</span>
+        <span className="text-slate-300 mx-1">&gt;</span>
+        <span>{cat}</span>
+      </button>
+    </div>
+
+    {currentCategoryTopBanner && (
+      <div className="px-3 pt-3">{renderBanner(currentCategoryTopBanner)}</div>
+    )}
+  </>
+)}
 
       <main className="px-3 py-2.5 pb-44 space-y-2">
         {!user && (
