@@ -27,9 +27,129 @@ type Category = {
   is_active?: boolean
 }
 
+type BusinessRow = {
+  id: string
+  name_kr?: string | null
+  name_en?: string | null
+  category_main?: string | null
+  category_sub?: string | null
+  phone?: string | null
+  address?: string | null
+  city?: string | null
+  metro_area?: string | null
+  approved?: boolean | null
+  is_active?: boolean | null
+  is_vip?: boolean | null
+  vip_tier?: string | null
+  data_source?: string | null
+}
+
+function normalizeCityFromAddress(address?: string | null) {
+  if (!address) return ''
+  const m = address.match(/,\s*([^,]+),\s*TX\b/i)
+  return m?.[1]?.trim() || ''
+}
+
+function inferMetroArea(city?: string | null, address?: string | null) {
+  const baseCity = (city || normalizeCityFromAddress(address) || '').trim()
+
+  const c = baseCity.toLowerCase()
+
+  const houstonCities = new Set([
+    'houston',
+    'katy',
+    'sugar land',
+    'pearland',
+    'cypress',
+    'spring',
+    'tomball',
+    'the woodlands',
+    'missouri city',
+    'stafford',
+    'bellaire',
+    'humble',
+    'pasadena',
+    'league city',
+    'richmond',
+    'rosenberg',
+    'fulshear',
+    'brookshire',
+    'conroe',
+    'klein',
+    'channelview',
+    'la porte',
+    'friendswood',
+    'webster',
+    'deer park',
+    'baytown',
+  ])
+
+  const dallasCities = new Set([
+    'dallas',
+    'plano',
+    'carrollton',
+    'frisco',
+    'irving',
+    'richardson',
+    'coppell',
+    'farmers branch',
+    'the colony',
+    'mesquite',
+    'mckinney',
+    'garland',
+    'flower mound',
+    'rockwall',
+    'lewisville',
+    'addison',
+    'allen',
+    'rowlett',
+    'denton',
+  ])
+
+  const fortWorthCities = new Set([
+    'fort worth',
+    'arlington',
+    'euless',
+    'bedford',
+    'hurst',
+    'grapevine',
+    'southlake',
+    'colleyville',
+    'north richland hills',
+    'keller',
+    'haltom city',
+    'grand prairie',
+  ])
+
+  const centralTexasCities = new Set([
+    'austin',
+    'san antonio',
+    'killeen',
+    'round rock',
+    'cedar park',
+    'georgetown',
+    'pflugerville',
+    'temple',
+    'belton',
+    'harker heights',
+    'copperas cove',
+    'new braunfels',
+    'schertz',
+    'cibolo',
+    'leander',
+  ])
+
+  if (houstonCities.has(c)) return 'houston'
+  if (dallasCities.has(c)) return 'dallas'
+  if (fortWorthCities.has(c)) return 'fort_worth'
+  if (centralTexasCities.has(c)) return 'central_texas'
+
+  return null
+}
+
 export default function AdminBusinessesPage() {
   const [tab, setTab] = useState<'pending' | 'vip' | 'all' | 'categories'>('all')
-  const [list, setList] = useState<any[]>([])
+  const [list, setList] = useState<BusinessRow[]>([])
   const [stats, setStats] = useState({
     total: 0,
     vip: 0,
@@ -107,7 +227,7 @@ export default function AdminBusinessesPage() {
         ])
 
         setRestored(true)
-      } catch (e) {
+      } catch {
         setErrorMsg('관리자 정보를 불러오는 중 오류가 발생했습니다.')
       } finally {
         setLoading(false)
@@ -171,7 +291,7 @@ export default function AdminBusinessesPage() {
       setErrorMsg('업소 목록을 불러오지 못했습니다.')
       setList([])
     } else {
-      setList(data || [])
+      setList((data || []) as BusinessRow[])
     }
 
     setLoading(false)
@@ -190,7 +310,7 @@ export default function AdminBusinessesPage() {
         vip: v.count || 0,
         pending: pd.count || 0,
       })
-    } catch (e) {
+    } catch {
       setErrorMsg('통계를 불러오는 중 오류가 발생했습니다.')
     }
   }
@@ -200,7 +320,7 @@ export default function AdminBusinessesPage() {
       setLoading(true)
       await loadStats()
       await loadList()
-    } catch (e) {
+    } catch {
       setErrorMsg('통계를 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -222,7 +342,7 @@ export default function AdminBusinessesPage() {
       } else {
         setCats(data || [])
       }
-    } catch (e) {
+    } catch {
       setErrorMsg('카테고리 로딩 중 오류가 발생했습니다.')
     } finally {
       setCatLoading(false)
@@ -331,18 +451,26 @@ export default function AdminBusinessesPage() {
 
     setBulkLoading(true)
 
-    const { error } = await sb
-      .from('businesses')
-      .update({ approved: true })
-      .in('id', Array.from(selected))
+    const selectedRows = list.filter((b) => selected.has(b.id))
 
-    setBulkLoading(false)
+    for (const b of selectedRows) {
+      const metro = inferMetroArea(b.city, b.address)
+      const payload: Record<string, any> = { approved: true }
+      if (metro) payload.metro_area = metro
 
-    if (error) {
-      alert('승인 실패: ' + error.message)
-      return
+      const { error } = await sb
+        .from('businesses')
+        .update(payload)
+        .eq('id', b.id)
+
+      if (error) {
+        setBulkLoading(false)
+        alert(`승인 실패: ${b.name_kr || b.name_en} / ${error.message}`)
+        return
+      }
     }
 
+    setBulkLoading(false)
     alert(`✅ ${selected.size}개 업소가 승인되었습니다.`)
     setSelected(new Set())
     loadList()
@@ -469,13 +597,17 @@ export default function AdminBusinessesPage() {
     loadStats()
   }
 
-  const approve = async (id: string) => {
-    await sb.from('businesses').update({ approved: true }).eq('id', id)
+  const approve = async (b: BusinessRow) => {
+    const metro = inferMetroArea(b.city, b.address)
+    const payload: Record<string, any> = { approved: true }
+    if (metro) payload.metro_area = metro
+
+    await sb.from('businesses').update(payload).eq('id', b.id)
     loadList()
     loadStats()
   }
 
-  const toggleVip = async (b: any) => {
+  const toggleVip = async (b: BusinessRow) => {
     await sb
       .from('businesses')
       .update({ is_vip: !b.is_vip, vip_tier: !b.is_vip ? 'pro' : null })
@@ -961,7 +1093,7 @@ export default function AdminBusinessesPage() {
           ) : (
             list.map((b) => {
               const isChecked = selected.has(b.id)
-              const regionLabel = REGION_LABELS[b.metro_area] || b.metro_area || '지역없음'
+              const regionLabel = REGION_LABELS[b.metro_area || ''] || b.metro_area || '지역없음'
 
               return (
                 <div
@@ -1022,7 +1154,7 @@ export default function AdminBusinessesPage() {
                       <div className="flex gap-2 flex-wrap">
                         {!b.approved && (
                           <button
-                            onClick={() => approve(b.id)}
+                            onClick={() => approve(b)}
                             className="bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg"
                           >
                             ✅ 승인
