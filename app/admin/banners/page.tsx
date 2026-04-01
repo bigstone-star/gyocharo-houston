@@ -15,12 +15,20 @@ const POSITION_LABELS: Record<string, string> = {
   category_top: '카테고리 상단',
 }
 
+const METRO_LABELS: Record<string, string> = {
+  houston: 'Houston',
+  dallas: 'Dallas',
+  fort_worth: 'Fort Worth',
+  central_texas: 'Central Texas',
+}
+
 type BannerForm = {
   title: string
   subtitle: string
   image_url: string
   link_url: string
   position: string
+  metro_area: string
   is_active: boolean
   price_paid: number
   ends_at: string
@@ -32,6 +40,7 @@ const EMPTY_FORM: BannerForm = {
   image_url: '',
   link_url: '',
   position: 'home_top',
+  metro_area: 'houston',
   is_active: true,
   price_paid: 0,
   ends_at: '',
@@ -86,6 +95,16 @@ export default function AdminBannersPage() {
       return
     }
 
+    if (!form.metro_area) {
+      setMsg('지역을 선택하세요')
+      return
+    }
+
+    if (!form.position) {
+      setMsg('배너 위치를 선택하세요')
+      return
+    }
+
     const payload = {
       ...form,
       ends_at: form.ends_at || null,
@@ -126,6 +145,7 @@ export default function AdminBannersPage() {
       image_url: banner.image_url || '',
       link_url: banner.link_url || '',
       position: banner.position || 'home_top',
+      metro_area: banner.metro_area || 'houston',
       is_active: !!banner.is_active,
       price_paid: Number(banner.price_paid || 0),
       ends_at: banner.ends_at?.slice(0, 16) || '',
@@ -198,6 +218,17 @@ export default function AdminBannersPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <select
+            value={form.metro_area}
+            onChange={(e) => setForm((f) => ({ ...f, metro_area: e.target.value }))}
+            className={fs + ' bg-white'}
+          >
+            <option value="houston">Houston</option>
+            <option value="dallas">Dallas</option>
+            <option value="fort_worth">Fort Worth</option>
+            <option value="central_texas">Central Texas</option>
+          </select>
+
+          <select
             value={form.position}
             onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
             className={fs + ' bg-white'}
@@ -207,17 +238,17 @@ export default function AdminBannersPage() {
             <option value="home_bottom">홈 하단</option>
             <option value="category_top">카테고리 상단</option>
           </select>
-
-          <input
-            type="number"
-            value={form.price_paid}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, price_paid: Number(e.target.value) }))
-            }
-            placeholder="광고비 ($)"
-            className={fs}
-          />
         </div>
+
+        <input
+          type="number"
+          value={form.price_paid}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, price_paid: Number(e.target.value) }))
+          }
+          placeholder="광고비 ($)"
+          className={fs}
+        />
 
         <input
           type="datetime-local"
@@ -282,7 +313,8 @@ export default function AdminBannersPage() {
               </div>
 
               <div className="text-[11px] text-slate-400 mb-3">
-                위치: {POSITION_LABELS[banner.position] || banner.position} | 광고비: $
+                지역: {METRO_LABELS[banner.metro_area] || banner.metro_area || '-'} | 위치:{' '}
+                {POSITION_LABELS[banner.position] || banner.position} | 광고비: $
                 {banner.price_paid} | 클릭: {banner.click_count}회
               </div>
 
