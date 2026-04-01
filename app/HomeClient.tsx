@@ -11,18 +11,18 @@ const sb = createClient(
 const CAT_BG: Record<string, string> = {
   '식당·카페': 'bg-orange-50',
   '마트·식품': 'bg-yellow-50',
-  '의료': 'bg-blue-50',
-  '치과': 'bg-emerald-50',
-  '법률': 'bg-violet-50',
-  '자동차': 'bg-amber-50',
-  '미용': 'bg-pink-50',
-  '교육': 'bg-green-50',
+  의료: 'bg-blue-50',
+  치과: 'bg-emerald-50',
+  법률: 'bg-violet-50',
+  자동차: 'bg-amber-50',
+  미용: 'bg-pink-50',
+  교육: 'bg-green-50',
   '금융·보험': 'bg-sky-50',
-  '커뮤니티': 'bg-slate-50',
-  '부동산': 'bg-orange-50',
-  '세탁소': 'bg-teal-50',
-  '한의원': 'bg-lime-50',
-  '기타': 'bg-slate-100',
+  커뮤니티: 'bg-slate-50',
+  부동산: 'bg-orange-50',
+  세탁소: 'bg-teal-50',
+  한의원: 'bg-lime-50',
+  기타: 'bg-slate-100',
 }
 
 const REVIEW_TAGS = [
@@ -42,10 +42,7 @@ const REGIONS = [
   { value: 'fort_worth', label: 'Fort Worth' },
 ]
 
-const REGION_META: Record<
-  string,
-  { title: string; subtitle: string }
-> = {
+const REGION_META: Record<string, { title: string; subtitle: string }> = {
   houston: {
     title: '교차로 휴스턴',
     subtitle: 'Houston, TX · 한인 비즈니스 디렉토리',
@@ -165,34 +162,6 @@ export default function Home() {
   }, [region])
 
   useEffect(() => {
-  sb.from('banners')
-    .select('*')
-    .eq('is_active', true)
-    .eq('metro_area', region)
-    .order('created_at', { ascending: false })
-    .then(({ data, error }) => {
-      if (error || !data) {
-        setTopBanners([])
-        setMiddleBanners([])
-        setBottomBanners([])
-        return
-      }
-
-      const top = data.filter((b: any) => b.position === 'home_top')
-      const middle = data.filter((b: any) => b.position === 'home_middle')
-      const bottom = data.filter((b: any) => b.position === 'home_bottom')
-
-      setTopBanners(top)
-      setMiddleBanners(middle)
-      setBottomBanners(bottom)
-
-      setTopBannerIndex(0)
-      setMiddleBannerIndex(0)
-      setBottomBannerIndex(0)
-    })
-}, [region])
-  
-  useEffect(() => {
     sb.from('businesses')
       .select('category_main')
       .eq('is_active', true)
@@ -214,6 +183,34 @@ export default function Home() {
       .eq('metro_area', region)
       .then(({ count, error }) => {
         if (!error && count !== null) setTotalCount(count)
+      })
+  }, [region])
+
+  useEffect(() => {
+    sb.from('banners')
+      .select('*')
+      .eq('is_active', true)
+      .eq('metro_area', region)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setTopBanners([])
+          setMiddleBanners([])
+          setBottomBanners([])
+          return
+        }
+
+        const top = data.filter((b: any) => b.position === 'home_top')
+        const middle = data.filter((b: any) => b.position === 'home_middle')
+        const bottom = data.filter((b: any) => b.position === 'home_bottom')
+
+        setTopBanners(top)
+        setMiddleBanners(middle)
+        setBottomBanners(bottom)
+
+        setTopBannerIndex(0)
+        setMiddleBannerIndex(0)
+        setBottomBannerIndex(0)
       })
   }, [region])
 
@@ -539,13 +536,11 @@ export default function Home() {
       ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) /
         reviews.length
       : 0
-const regionMeta = REGION_META[region] || REGION_META.houston
-const displaySiteName =
-  headerLogoUrl && !showTextLogo ? siteName : regionMeta.title
 
-return (
-  <div className="min-h-screen bg-slate-100 max-w-lg mx-auto">
-    
+  const regionMeta = REGION_META[region] || REGION_META.houston
+  const displaySiteName =
+    headerLogoUrl && !showTextLogo ? siteName : regionMeta.title
+
   return (
     <div className="min-h-screen bg-slate-100 max-w-lg mx-auto">
       <header className="bg-[#1a1a2e] sticky top-0 z-40 shadow-xl">
@@ -560,12 +555,19 @@ return (
               />
             ) : (
               <h1 className="text-[20px] font-extrabold text-white">
-                <span className="text-amber-400">교차로</span> 휴스턴
+                {displaySiteName.startsWith('교차로 ') ? (
+                  <>
+                    <span className="text-amber-400">교차로</span>{' '}
+                    {displaySiteName.replace('교차로 ', '')}
+                  </>
+                ) : (
+                  displaySiteName
+                )}
               </h1>
             )}
 
             <p className="text-[11px] text-white/40 mt-0.5">
-              {REGIONS.find((r) => r.value === region)?.label}, TX · 한인 비즈니스 디렉토리
+              {regionMeta.subtitle}
             </p>
           </div>
 
@@ -638,7 +640,9 @@ return (
         </div>
       </header>
 
-      {currentTopBanner && <div className="px-3 pt-3">{renderBanner(currentTopBanner)}</div>}
+      {currentTopBanner && (
+        <div className="px-3 pt-3">{renderBanner(currentTopBanner)}</div>
+      )}
 
       {cat === '전체' ? (
         <div className="bg-white border-b border-slate-200 px-3.5 py-3.5 mt-3">
@@ -707,7 +711,9 @@ return (
             <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : biz.length === 0 ? (
-          <div className="text-center py-20 text-slate-400">검색 결과가 없습니다</div>
+          <div className="text-center py-20 text-slate-400">
+            검색 결과가 없습니다
+          </div>
         ) : (
           biz.map((b, index) => {
             const catInfo =
@@ -724,7 +730,9 @@ return (
                     await loadReviews(b.id)
                   }}
                   className={`bg-white rounded-xl border px-4 py-3.5 flex gap-3 cursor-pointer active:scale-[.99] transition-all ${
-                    b.is_vip ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'
+                    b.is_vip
+                      ? 'border-amber-300 bg-amber-50/30'
+                      : 'border-slate-200'
                   }`}
                 >
                   <div
@@ -758,7 +766,9 @@ return (
                     {addr && (
                       <div className="text-[12px] text-slate-500 truncate mt-0.5">
                         <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            addr
+                          )}`}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -796,7 +806,9 @@ return (
                     className="flex-shrink-0 self-start pt-0.5 p-1"
                   >
                     <span
-                      className={`text-xl ${isFav ? 'text-red-500' : 'text-slate-300'}`}
+                      className={`text-xl ${
+                        isFav ? 'text-red-500' : 'text-slate-300'
+                      }`}
                     >
                       {isFav ? '♥' : '♡'}
                     </span>
@@ -844,7 +856,10 @@ return (
         >
           <div className="bg-white rounded-t-2xl w-full max-h-[90vh] overflow-y-auto pb-10">
             <div className="flex justify-end px-5 pt-4">
-              <button onClick={closeModal} className="text-slate-400 text-2xl">
+              <button
+                onClick={closeModal}
+                className="text-slate-400 text-2xl"
+              >
                 ✕
               </button>
             </div>
@@ -869,7 +884,9 @@ return (
                     <span className="text-amber-400">
                       {'★'.repeat(Math.max(1, Math.round(Number(sel.rating))))}
                     </span>
-                    <span className="font-bold">{Number(sel.rating).toFixed(1)}</span>
+                    <span className="font-bold">
+                      {Number(sel.rating).toFixed(1)}
+                    </span>
                     <span className="text-[13px] text-slate-400">
                       외부 평점 · {(sel.review_count || 0).toLocaleString()}개
                     </span>
@@ -913,7 +930,10 @@ return (
                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">
                       전화
                     </div>
-                    <a href={'tel:' + sel.phone} className="text-[14px] font-semibold text-indigo-600">
+                    <a
+                      href={'tel:' + sel.phone}
+                      className="text-[14px] font-semibold text-indigo-600"
+                    >
                       {sel.phone}
                     </a>
                   </div>
@@ -943,7 +963,9 @@ return (
             <div className="px-5 pt-4 border-t border-slate-100 mt-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="text-[16px] font-extrabold text-slate-900">리뷰</div>
+                  <div className="text-[16px] font-extrabold text-slate-900">
+                    리뷰
+                  </div>
                   <div className="text-[12px] text-slate-400 mt-0.5">
                     {reviews.length > 0
                       ? `평균 ★${avgRating.toFixed(1)} · ${reviews.length}개`
@@ -959,15 +981,21 @@ return (
                   </div>
 
                   <div className="mb-3">
-                    <div className="text-[11px] font-bold text-slate-400 mb-2">별점</div>
+                    <div className="text-[11px] font-bold text-slate-400 mb-2">
+                      별점
+                    </div>
                     <div className="flex gap-1">
                       {[1, 2, 3, 4, 5].map((n) => (
                         <button
                           key={n}
                           type="button"
-                          onClick={() => setReviewForm((prev) => ({ ...prev, rating: n }))}
+                          onClick={() =>
+                            setReviewForm((prev) => ({ ...prev, rating: n }))
+                          }
                           className={`text-2xl ${
-                            n <= reviewForm.rating ? 'text-amber-400' : 'text-slate-300'
+                            n <= reviewForm.rating
+                              ? 'text-amber-400'
+                              : 'text-slate-300'
                           }`}
                         >
                           ★
@@ -977,7 +1005,9 @@ return (
                   </div>
 
                   <div className="mb-3">
-                    <div className="text-[11px] font-bold text-slate-400 mb-2">한 줄 리뷰</div>
+                    <div className="text-[11px] font-bold text-slate-400 mb-2">
+                      한 줄 리뷰
+                    </div>
                     <textarea
                       value={reviewForm.review_text}
                       onChange={(e) =>
@@ -994,7 +1024,9 @@ return (
                   </div>
 
                   <div className="mb-4">
-                    <div className="text-[11px] font-bold text-slate-400 mb-2">태그</div>
+                    <div className="text-[11px] font-bold text-slate-400 mb-2">
+                      태그
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {REVIEW_TAGS.map((tag) => {
                         const active = reviewForm.tags.includes(tag)
@@ -1021,7 +1053,11 @@ return (
                     disabled={reviewSaving}
                     className="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-[13px] font-bold disabled:opacity-50"
                   >
-                    {reviewSaving ? '저장 중...' : myReview ? '리뷰 수정하기' : '리뷰 등록하기'}
+                    {reviewSaving
+                      ? '저장 중...'
+                      : myReview
+                        ? '리뷰 수정하기'
+                        : '리뷰 등록하기'}
                   </button>
                 </div>
               ) : (
@@ -1038,7 +1074,9 @@ return (
                   <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : reviews.length === 0 ? (
-                <div className="text-[13px] text-slate-400 py-4">첫 리뷰를 남겨보세요.</div>
+                <div className="text-[13px] text-slate-400 py-4">
+                  첫 리뷰를 남겨보세요.
+                </div>
               ) : (
                 <div className="space-y-3 pb-2">
                   {reviews.map((r) => (
