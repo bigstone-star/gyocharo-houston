@@ -40,6 +40,7 @@ const REGIONS = [
   { value: 'houston', label: 'Houston' },
   { value: 'dallas', label: 'Dallas' },
   { value: 'fort_worth', label: 'Fort Worth' },
+  { value: 'central_texas', label: 'Central Texas' },
 ]
 
 const REGION_META: Record<string, { title: string; subtitle: string }> = {
@@ -55,6 +56,10 @@ const REGION_META: Record<string, { title: string; subtitle: string }> = {
     title: '교차로 포트워스',
     subtitle: 'Fort Worth, TX · 한인 비즈니스 디렉토리',
   },
+  central_texas: {
+  title: '교차로 텍사스 중부',
+  subtitle: 'Central Texas · 한인 비즈니스 디렉토리',
+},
 }
 
 type Category = {
