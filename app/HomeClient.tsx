@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const sb = createClient(
@@ -70,6 +72,11 @@ type Category = {
 }
 
 export default function Home() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const hasInitializedFromUrl = useRef(false)
+  const hasWrittenUrl = useRef(false)
+
   const [biz, setBiz] = useState<any[]>([])
   const [siteName, setSiteName] = useState('교차로 휴스턴')
   const [headerLogoUrl, setHeaderLogoUrl] = useState('')
@@ -132,11 +139,6 @@ export default function Home() {
       setFavs(JSON.parse(localStorage.getItem('gj_favs') || '[]'))
     } catch {}
 
-    try {
-      const savedRegion = localStorage.getItem('gj_region')
-      if (savedRegion) setRegion(savedRegion)
-    } catch {}
-
     sb.auth.getUser().then(({ data }) => setUser(data.user))
 
     const {
@@ -161,10 +163,55 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    if (hasInitializedFromUrl.current) return
+
+    const urlRegion = searchParams.get('region')
+    const urlSearch = searchParams.get('search')
+    const urlCat = searchParams.get('cat')
+    const urlSort = searchParams.get('sort')
+
+    if (urlRegion) {
+      setRegion(urlRegion)
+    } else {
+      try {
+        const savedRegion = localStorage.getItem('gj_region')
+        if (savedRegion) setRegion(savedRegion)
+      } catch {}
+    }
+
+    if (urlSearch) setSearch(urlSearch)
+    if (urlCat) setCat(urlCat)
+    if (urlSort && SORTS.includes(urlSort)) setSort(urlSort)
+
+    hasInitializedFromUrl.current = true
+  }, [searchParams])
+
+  useEffect(() => {
     try {
       localStorage.setItem('gj_region', region)
     } catch {}
   }, [region])
+
+  useEffect(() => {
+    if (!hasInitializedFromUrl.current) return
+
+    const params = new URLSearchParams()
+
+    if (region) params.set('region', region)
+    if (search.trim()) params.set('search', search.trim())
+    if (cat && cat !== '전체') params.set('cat', cat)
+    if (sort && sort !== 'rating') params.set('sort', sort)
+
+    const qs = params.toString()
+    const nextUrl = qs ? `/?${qs}` : '/'
+
+    if (!hasWrittenUrl.current) {
+      hasWrittenUrl.current = true
+      return
+    }
+
+    router.replace(nextUrl, { scroll: false })
+  }, [region, search, cat, sort, router])
 
   useEffect(() => {
     sb.from('businesses')
@@ -293,6 +340,7 @@ q = q
   }, [cat, search, sort, region])
 
   useEffect(() => {
+    if (!hasInitializedFromUrl.current) return
     load()
   }, [load])
 
@@ -471,7 +519,7 @@ q = q
   const signOut = async () => {
     await sb.auth.signOut()
     setUser(null)
-    window.location.href = '/'
+    router.push('/')
   }
 
   const handleBannerClick = async (banner: any) => {
@@ -594,20 +642,20 @@ q = q
                   로그아웃
                 </button>
 
-                <a
+                <Link
                   href="/dashboard"
                   className="text-[12px] font-bold text-[#1a1a2e] bg-amber-400 px-3 py-1.5 rounded-lg"
                 >
                   내정보
-                </a>
+                </Link>
               </>
             ) : (
-              <a
+              <Link
                 href="/auth/login"
                 className="text-[12px] font-bold text-white/70 bg-white/10 px-3 py-1.5 rounded-lg border border-white/15"
               >
                 로그인
-              </a>
+              </Link>
             )}
           </div>
         </div>
@@ -702,7 +750,7 @@ q = q
 
       <main className="px-3 py-2.5 pb-44 space-y-2">
         {!user && (
-          <a
+          <Link
             href="/auth/login"
             className="block bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl px-4 py-3 mb-2"
           >
@@ -845,7 +893,7 @@ q = q
             active: false,
           },
         ].map((item) => (
-          <a
+          <Link
             key={item.href}
             href={item.href}
             className={`flex-1 flex flex-col items-center gap-1 py-2.5 ${
@@ -854,7 +902,7 @@ q = q
           >
             <span className="text-xl">{item.icon}</span>
             <span className="text-[10px] font-bold">{item.label}</span>
-          </a>
+          </Link>
         ))}
       </nav>
 
@@ -1070,12 +1118,12 @@ q = q
                   </button>
                 </div>
               ) : (
-                <a
+                <Link
                   href="/auth/login"
                   className="block bg-slate-50 rounded-xl border border-slate-200 p-4 mb-4 text-[13px] text-slate-600"
                 >
                   리뷰 작성은 로그인 후 가능합니다.
-                </a>
+                </Link>
               )}
 
               {reviewLoading ? (
