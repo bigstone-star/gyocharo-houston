@@ -148,7 +148,7 @@ function inferMetroArea(city?: string | null, address?: string | null) {
 }
 
 export default function AdminBusinessesPage() {
-  const [tab, setTab] = useState<'pending' | 'vip' | 'all' | 'categories'>('all')
+  const [tab, setTab] = useState<'pending' | 'vip' | 'all' | 'categories' | 'trash'>('all')
   const [list, setList] = useState<BusinessRow[]>([])
   const [stats, setStats] = useState({
     total: 0,
@@ -207,9 +207,15 @@ export default function AdminBusinessesPage() {
           const saved = sessionStorage.getItem(STORAGE_KEY)
           if (saved) {
             const parsed = JSON.parse(saved)
-            if (parsed.tab === 'pending' || parsed.tab === 'vip' || parsed.tab === 'all' || parsed.tab === 'categories') {
-              savedTab = parsed.tab
-            }
+            if (
+  parsed.tab === 'pending' ||
+  parsed.tab === 'vip' ||
+  parsed.tab === 'all' ||
+  parsed.tab === 'categories' ||
+  parsed.tab === 'trash'
+) {
+  savedTab = parsed.tab
+}
             if (typeof parsed.search === 'string') {
               savedSearch = parsed.search
             }
@@ -261,7 +267,10 @@ export default function AdminBusinessesPage() {
     setLoading(true)
     setSelected(new Set())
 
-    let q = sb.from('businesses').select('*').eq('is_active', true)
+    let q =
+  tabOverride === 'trash' || tab === 'trash'
+    ? sb.from('businesses').select('*').eq('is_active', false)
+    : sb.from('businesses').select('*').eq('is_active', true)
 
     if (currentTab === 'pending') q = q.eq('data_source', 'user_registered')
     if (currentTab === 'vip') q = q.eq('is_vip', true)
@@ -618,11 +627,58 @@ export default function AdminBusinessesPage() {
   }
 
   const deactivate = async (id: string) => {
-    if (!confirm('비활성화할까요?')) return
-    await sb.from('businesses').update({ is_active: false }).eq('id', id)
-    loadList()
-    loadStats()
+  if (!confirm('휴지통으로 이동할까요?')) return
+
+  await sb
+    .from('businesses')
+    .update({
+      is_active: false,
+      deleted_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  loadList()
+  loadStats()
+}
+  const restoreBusiness = async (id: string) => {
+  if (!confirm('복구할까요?')) return
+
+  const { error } = await sb
+    .from('businesses')
+    .update({
+      is_active: true,
+      deleted_at: null,
+      deleted_reason: null,
+    })
+    .eq('id', id)
+
+  if (error) {
+    alert('복구 실패: ' + error.message)
+    return
   }
+
+  alert('✅ 복구되었습니다.')
+  loadList()
+  loadStats()
+}
+
+const hardDeleteBusiness = async (id: string) => {
+  if (!confirm('정말 완전 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return
+
+  const { error } = await sb
+    .from('businesses')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    alert('완전 삭제 실패: ' + error.message)
+    return
+  }
+
+  alert('✅ 완전 삭제되었습니다.')
+  loadList()
+  loadStats()
+}
 
   const addCat = async () => {
     if (!newCatName.trim()) return alert('카테고리 이름을 입력하세요')
@@ -763,10 +819,13 @@ export default function AdminBusinessesPage() {
 
       <div className="px-4 flex gap-2 mb-3 flex-wrap">
         {([
-          ['pending', '신규 대기'],
-          ['vip', 'VIP'],
-          ['all', '전체'],
-          ['categories', '🗂 카테고리'],
+          ([
+  ['pending', '신규 대기'],
+  ['vip', 'VIP'],
+  ['all', '전체'],
+  ['trash', '🗑 휴지통'],
+  ['categories', '🗂 카테고리'],
+] as const)
         ] as const).map(([k, l]) => (
           <button
             key={k}
@@ -1152,38 +1211,58 @@ export default function AdminBusinessesPage() {
                       </div>
 
                       <div className="flex gap-2 flex-wrap">
-                        {!b.approved && (
-                          <button
-                            onClick={() => approve(b)}
-                            className="bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg"
-                          >
-                            ✅ 승인
-                          </button>
-                        )}
+  {tab !== 'trash' ? (
+    <>
+      {!b.approved && (
+        <button
+          onClick={() => approve(b)}
+          className="bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg"
+        >
+          ✅ 승인
+        </button>
+      )}
 
-                        <a
-                          href={`/admin/businesses/${b.id}`}
-                          className="text-[11px] font-bold py-1.5 px-3 rounded-lg bg-indigo-50 text-indigo-600"
-                        >
-                          ✏️ 수정
-                        </a>
+      <a
+        href={`/admin/businesses/${b.id}`}
+        className="text-[11px] font-bold py-1.5 px-3 rounded-lg bg-indigo-50 text-indigo-600"
+      >
+        ✏️ 수정
+      </a>
 
-                        <button
-                          onClick={() => toggleVip(b)}
-                          className={`text-[11px] font-bold py-1.5 px-3 rounded-lg ${
-                            b.is_vip ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'
-                          }`}
-                        >
-                          {b.is_vip ? 'VIP 해제' : '⭐ VIP'}
-                        </button>
+      <button
+        onClick={() => toggleVip(b)}
+        className={`text-[11px] font-bold py-1.5 px-3 rounded-lg ${
+          b.is_vip ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'
+        }`}
+      >
+        {b.is_vip ? 'VIP 해제' : '⭐ VIP'}
+      </button>
 
-                        <button
-                          onClick={() => deactivate(b.id)}
-                          className="text-[11px] font-bold py-1.5 px-3 rounded-lg bg-slate-100 text-slate-500"
-                        >
-                          🗑 비활성화
-                        </button>
-                      </div>
+      <button
+        onClick={() => deactivate(b.id)}
+        className="text-[11px] font-bold py-1.5 px-3 rounded-lg bg-slate-100 text-slate-500"
+      >
+        🗑 비활성화
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        onClick={() => restoreBusiness(b.id)}
+        className="text-[11px] font-bold py-1.5 px-3 rounded-lg bg-green-100 text-green-700"
+      >
+        ♻️ 복구
+      </button>
+
+      <button
+        onClick={() => hardDeleteBusiness(b.id)}
+        className="text-[11px] font-bold py-1.5 px-3 rounded-lg bg-red-100 text-red-600"
+      >
+        ❌ 완전삭제
+      </button>
+    </>
+  )}
+</div>
                     </div>
                   </div>
                 </div>
