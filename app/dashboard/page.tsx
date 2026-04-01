@@ -236,6 +236,17 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {['admin', 'super_admin'].includes(profile?.role || '') && (
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <a
+              href="/admin"
+              className="block w-full bg-indigo-600 text-white text-center py-3 rounded-xl font-bold"
+            >
+              ⚙️ 관리자 페이지 이동
+            </a>
+          </div>
+        )}
+
         {businesses.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
             <div className="text-[14px] font-bold text-slate-700">
