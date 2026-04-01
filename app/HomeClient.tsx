@@ -137,22 +137,6 @@ export default function Home() {
         setCats([allCat, ...(data || [])])
       })
 
-    sb.from('banners')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error || !data) return
-
-        const top = data.filter((b: any) => b.position === 'home_top')
-        const middle = data.filter((b: any) => b.position === 'home_middle')
-        const bottom = data.filter((b: any) => b.position === 'home_bottom')
-
-        setTopBanners(top)
-        setMiddleBanners(middle)
-        setBottomBanners(bottom)
-      })
-
     return () => subscription.unsubscribe()
   }, [])
 
@@ -162,6 +146,34 @@ export default function Home() {
     } catch {}
   }, [region])
 
+  useEffect(() => {
+  sb.from('banners')
+    .select('*')
+    .eq('is_active', true)
+    .eq('metro_area', region)
+    .order('created_at', { ascending: false })
+    .then(({ data, error }) => {
+      if (error || !data) {
+        setTopBanners([])
+        setMiddleBanners([])
+        setBottomBanners([])
+        return
+      }
+
+      const top = data.filter((b: any) => b.position === 'home_top')
+      const middle = data.filter((b: any) => b.position === 'home_middle')
+      const bottom = data.filter((b: any) => b.position === 'home_bottom')
+
+      setTopBanners(top)
+      setMiddleBanners(middle)
+      setBottomBanners(bottom)
+
+      setTopBannerIndex(0)
+      setMiddleBannerIndex(0)
+      setBottomBannerIndex(0)
+    })
+}, [region])
+  
   useEffect(() => {
     sb.from('businesses')
       .select('category_main')
