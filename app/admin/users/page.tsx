@@ -24,6 +24,10 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [savingId, setSavingId] = useState('')
 
+  const [currentUserId, setCurrentUserId] = useState('')
+  const [currentUserRole, setCurrentUserRole] = useState('')
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -33,6 +37,8 @@ export default function AdminUsersPage() {
           window.location.href = '/auth/login'
           return
         }
+
+        setCurrentUserId(authData.user.id)
 
         const { data: profile, error } = await sb
           .from('user_profiles')
@@ -46,10 +52,15 @@ export default function AdminUsersPage() {
           return
         }
 
-        if (!profile || !['admin', 'super_admin'].includes(profile.role || '')) {
+        const role = profile?.role || ''
+
+        if (!profile || !['admin', 'super_admin'].includes(role)) {
           window.location.href = '/'
           return
         }
+
+        setCurrentUserRole(role)
+        setIsSuperAdmin(role === 'super_admin')
 
         await loadUsers()
       } catch (e) {
@@ -134,7 +145,19 @@ export default function AdminUsersPage() {
     await loadUsers(search)
   }
 
-  const updateRole = async (userId: string, nextRole: string) => {
+  const updateRole = async (userId: string, nextRole: string, currentRole?: string | null) => {
+    if (!isSuperAdmin) {
+      alert('super_admin만 권한을 변경할 수 있습니다.')
+      return
+    }
+
+    if (userId === currentUserId) {
+      alert('본인 계정의 권한은 여기서 변경할 수 없습니다.')
+      return
+    }
+
+    if ((currentRole || 'user') === nextRole) return
+
     if (!confirm(`이 회원의 권한을 "${nextRole}"로 변경할까요?`)) return
 
     try {
@@ -151,7 +174,7 @@ export default function AdminUsersPage() {
       }
 
       alert('✅ 권한이 변경되었습니다.')
-      await loadUsers()
+      await loadUsers(search)
     } finally {
       setSavingId('')
     }
@@ -211,7 +234,7 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 space-y-3">
         <div className="bg-white rounded-xl border border-slate-200 p-3">
           <div className="flex gap-2">
             <input
@@ -240,6 +263,16 @@ export default function AdminUsersPage() {
             )}
           </div>
         </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-[12px] text-slate-500">
+          현재 로그인 권한:{' '}
+          <span className="font-bold text-slate-700">{currentUserRole || 'unknown'}</span>
+          {isSuperAdmin && (
+            <span className="ml-2 inline-block bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-bold">
+              super_admin 권한 변경 가능
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="px-4 space-y-2">
@@ -252,58 +285,73 @@ export default function AdminUsersPage() {
             {search ? `"${search}" 검색 결과가 없습니다` : '회원이 없습니다'}
           </div>
         ) : (
-          users.map((u) => (
-            <div key={u.id} className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-bold text-slate-800 truncate">
-                    {u.name || '이름 없음'}
-                  </div>
+          users.map((u) => {
+            const isSelf = u.id === currentUserId
 
-                  <div className="text-[12px] text-slate-500 mt-1 break-all">
-                    {u.email || '이메일 없음'}
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap mt-2">
-                    <span className="text-[11px] bg-slate-100 text-slate-700 px-2 py-1 rounded">
-                      권한: {u.role || 'user'}
-                    </span>
-
-                    <span className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded">
-                      연결 업소 {u.business_count || 0}개
-                    </span>
-                  </div>
-
-                  {u.created_at && (
-                    <div className="text-[11px] text-slate-400 mt-2">
-                      가입일: {new Date(u.created_at).toLocaleDateString()}
+            return (
+              <div key={u.id} className="bg-white rounded-xl border border-slate-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-bold text-slate-800 truncate">
+                      {u.name || '이름 없음'}
+                      {isSelf && (
+                        <span className="ml-2 text-[11px] bg-slate-100 text-slate-600 px-2 py-1 rounded-full align-middle">
+                          본인
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div className="flex flex-col gap-2 min-w-[140px]">
-                  <a
-                    href={`/admin/users/${u.id}`}
-                    className="text-[12px] font-bold px-3 py-2 rounded-lg bg-indigo-50 text-indigo-600 text-center"
-                  >
-                    상세보기
-                  </a>
+                    <div className="text-[12px] text-slate-500 mt-1 break-all">
+                      {u.email || '이메일 없음'}
+                    </div>
 
-                  <select
-                    defaultValue={u.role || 'user'}
-                    disabled={savingId === u.id}
-                    onChange={(e) => updateRole(u.id, e.target.value)}
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-white"
-                  >
-                    <option value="user">user</option>
-                    <option value="owner">owner</option>
-                    <option value="admin">admin</option>
-                    <option value="super_admin">super_admin</option>
-                  </select>
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                      <span className="text-[11px] bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                        권한: {u.role || 'user'}
+                      </span>
+
+                      <span className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded">
+                        연결 업소 {u.business_count || 0}개
+                      </span>
+                    </div>
+
+                    {u.created_at && (
+                      <div className="text-[11px] text-slate-400 mt-2">
+                        가입일: {new Date(u.created_at).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2 min-w-[160px]">
+                    <a
+                      href={`/admin/users/${u.id}`}
+                      className="text-[12px] font-bold px-3 py-2 rounded-lg bg-indigo-50 text-indigo-600 text-center"
+                    >
+                      상세보기
+                    </a>
+
+                    {isSuperAdmin && !isSelf ? (
+                      <select
+                        value={u.role || 'user'}
+                        disabled={savingId === u.id}
+                        onChange={(e) => updateRole(u.id, e.target.value, u.role)}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-white"
+                      >
+                        <option value="user">user</option>
+                        <option value="owner">owner</option>
+                        <option value="admin">admin</option>
+                        <option value="super_admin">super_admin</option>
+                      </select>
+                    ) : (
+                      <div className="border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-slate-50 text-slate-500 text-center font-bold">
+                        {u.role || 'user'}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>
