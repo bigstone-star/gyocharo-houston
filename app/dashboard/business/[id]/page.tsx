@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
 const sb = createClient(
@@ -8,86 +9,391 @@ const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export default function BusinessEditPage({ params }: any) {
-  const [biz, setBiz] = useState<any>(null)
-  const [user, setUser] = useState<any>(null)
+type BusinessRow = {
+  id: string
+  name_kr?: string | null
+  name_en?: string | null
+  category_main?: string | null
+  category_sub?: string | null
+  phone?: string | null
+  address?: string | null
+  website?: string | null
+  description_kr?: string | null
+  is_active?: boolean | null
+  approved?: boolean | null
+  is_vip?: boolean | null
+  vip_tier?: string | null
+  owner_id?: string | null
+}
+
+type ReviewRow = {
+  id: string
+  rating?: number | null
+  review_text?: string | null
+  tags?: string[] | null
+  created_at?: string | null
+}
+
+export default function OwnerBusinessDetailPage({
+  params,
+}: {
+  params: { id: string }
+}) {
+  const businessId = params.id
+
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [user, setUser] = useState<any>(null)
+  const [business, setBusiness] = useState<BusinessRow | null>(null)
+  const [requesting, setRequesting] = useState(false)
+  const [reviewsLoading, setReviewsLoading] = useState(true)
+  const [reviews, setReviews] = useState<ReviewRow[]>([])
+
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [website, setWebsite] = useState('')
+  const [desc, setDesc] = useState('')
+  const [comment, setComment] = useState('')
 
   useEffect(() => {
     const init = async () => {
-      const { data } = await sb.auth.getUser()
+      try {
+        const { data: authData } = await sb.auth.getUser()
 
-      if (!data.user) {
-        window.location.href = '/auth/login'
-        return
+        if (!authData.user) {
+          window.location.href = '/auth/login'
+          return
+        }
+
+        setUser(authData.user)
+
+        const { data, error } = await sb
+          .from('businesses')
+          .select(`
+            id,
+            name_kr,
+            name_en,
+            category_main,
+            category_sub,
+            phone,
+            address,
+            website,
+            description_kr,
+            is_active,
+            approved,
+            is_vip,
+            vip_tier,
+            owner_id
+          `)
+          .eq('id', businessId)
+          .eq('owner_id', authData.user.id)
+          .maybeSingle()
+
+        if (error || !data) {
+          setErrorMsg('내 업소 정보를 찾을 수 없습니다.')
+          setLoading(false)
+          return
+        }
+
+        setBusiness(data)
+
+        setPhone(data.phone || '')
+        setAddress(data.address || '')
+        setWebsite(data.website || '')
+        setDesc(data.description_kr || '')
+
+        const { data: reviewsData, error: reviewsError } = await sb
+          .from('reviews')
+          .select('id, rating, review_text, tags, created_at')
+          .eq('business_id', data.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(20)
+
+        if (!reviewsError) {
+          setReviews(reviewsData || [])
+        }
+      } catch (e) {
+        console.error(e)
+        setErrorMsg('업소 정보를 불러오는 중 오류가 발생했습니다.')
+      } finally {
+        setLoading(false)
+        setReviewsLoading(false)
       }
-
-      setUser(data.user)
-
-      const { data: business } = await sb
-        .from('businesses')
-        .select('*')
-        .eq('id', params.id)
-        .single()
-
-      if (!business || business.owner_id !== data.user.id) {
-        window.location.href = '/dashboard'
-        return
-      }
-
-      setBiz(business)
-      setLoading(false)
     }
 
     init()
-  }, [params.id])
+  }, [businessId])
 
-  const save = async () => {
-    setSaving(true)
+  const handleSubmit = async () => {
+    if (!user?.id || !business) return
 
-    const { error } = await sb
-      .from('businesses')
-      .update({
-        name_kr: biz.name_kr,
-        name_en: biz.name_en,
-        phone: biz.phone,
-        address: biz.address,
-        website: biz.website,
-        description_kr: biz.description_kr,
-      })
-      .eq('id', biz.id)
+    const trimmedPhone = phone.trim()
+    const trimmedAddress = address.trim()
+    const trimmedWebsite = website.trim()
+    const trimmedDesc = desc.trim()
+    const trimmedComment = comment.trim()
 
-    setSaving(false)
+    const changedPhone = trimmedPhone !== (business.phone || '')
+    const changedAddress = trimmedAddress !== (business.address || '')
+    const changedWebsite = trimmedWebsite !== (business.website || '')
+    const changedDesc = trimmedDesc !== (business.description_kr || '')
 
-    if (error) {
-      alert('저장 실패')
+    if (!changedPhone && !changedAddress && !changedWebsite && !changedDesc) {
+      alert('수정할 내용을 입력하세요')
       return
     }
 
-    alert('저장 완료')
+    if (!trimmedComment) {
+      alert('관리자에게 전달할 코멘트를 입력하세요')
+      return
+    }
+
+    try {
+      setRequesting(true)
+
+      const { error } = await sb.from('business_edits').insert({
+        business_id: business.id,
+        user_id: user.id,
+        phone: changedPhone ? trimmedPhone : null,
+        address: changedAddress ? trimmedAddress : null,
+        website: changedWebsite ? trimmedWebsite : null,
+        description_kr: changedDesc ? trimmedDesc : null,
+        message: trimmedComment,
+        status: 'pending',
+        original_data: {
+          phone: business.phone || null,
+          address: business.address || null,
+          website: business.website || null,
+          description_kr: business.description_kr || null,
+        },
+      })
+
+      if (error) {
+        alert('수정 요청 실패: ' + error.message)
+        return
+      }
+
+      alert('✅ 수정 요청이 접수되었습니다. 관리자 승인 후 반영됩니다.')
+      setComment('')
+    } finally {
+      setRequesting(false)
+    }
   }
 
-  if (loading) return <div className="p-10">로딩중...</div>
+  const avgRating =
+    reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length
+      : 0
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (errorMsg || !business) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 text-center max-w-md w-full">
+          <div className="text-red-600 font-bold mb-3">
+            {errorMsg || '업소 정보를 찾을 수 없습니다.'}
+          </div>
+          <Link
+            href="/dashboard"
+            className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
+          >
+            내 업소 관리
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="max-w-lg mx-auto p-4 space-y-3">
-      <h1 className="text-xl font-bold">업소 수정</h1>
+    <div className="min-h-screen bg-slate-100 max-w-lg mx-auto pb-10">
+      <div className="bg-[#1a1a2e] px-5 pt-10 pb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-[20px] font-extrabold text-white">내 업소 상세</h1>
+          <p className="text-white/40 text-[12px] mt-1">
+            업소 정보, 리뷰 확인, VIP 신청
+          </p>
+        </div>
 
-      <input value={biz.name_kr || ''} onChange={(e) => setBiz({ ...biz, name_kr: e.target.value })} placeholder="업소명(한글)" className="border p-2 w-full" />
-      <input value={biz.name_en || ''} onChange={(e) => setBiz({ ...biz, name_en: e.target.value })} placeholder="업소명(영문)" className="border p-2 w-full" />
-      <input value={biz.phone || ''} onChange={(e) => setBiz({ ...biz, phone: e.target.value })} placeholder="전화번호" className="border p-2 w-full" />
-      <input value={biz.address || ''} onChange={(e) => setBiz({ ...biz, address: e.target.value })} placeholder="주소" className="border p-2 w-full" />
-      <input value={biz.website || ''} onChange={(e) => setBiz({ ...biz, website: e.target.value })} placeholder="웹사이트" className="border p-2 w-full" />
+        <Link
+          href="/dashboard"
+          className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+        >
+          내 업소 관리
+        </Link>
+      </div>
 
-      <textarea value={biz.description_kr || ''} onChange={(e) => setBiz({ ...biz, description_kr: e.target.value })} placeholder="소개글" className="border p-2 w-full" />
+      <div className="px-4 pt-4 space-y-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="text-[18px] font-extrabold text-slate-900 flex items-center gap-2 flex-wrap">
+            <span>{business.name_kr || business.name_en}</span>
 
-      <button
-        onClick={save}
-        className="bg-indigo-600 text-white w-full py-3 rounded"
-      >
-        {saving ? '저장중...' : '저장'}
-      </button>
+            {business.is_vip && (
+              <span className="text-[10px] bg-amber-300 text-amber-900 px-2 py-0.5 rounded font-bold">
+                ⭐ {business.vip_tier?.toUpperCase() || 'VIP'}
+              </span>
+            )}
+          </div>
+
+          <div className="text-[12px] text-slate-500 mt-3 space-y-2">
+            {business.category_main && <div>카테고리: {business.category_main}</div>}
+            {business.category_sub && <div>서브카테고리: {business.category_sub}</div>}
+            {business.phone && <div>전화: {business.phone}</div>}
+            {business.address && <div>주소: {business.address}</div>}
+            {business.website && <div>웹사이트: {business.website}</div>}
+          </div>
+
+          <div className="flex gap-2 mt-4 flex-wrap">
+            {!business.approved && (
+              <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded font-bold">
+                승인 대기
+              </span>
+            )}
+
+            {business.is_active === false && (
+              <span className="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded font-bold">
+                비활성
+              </span>
+            )}
+
+            <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold">
+              리뷰 {reviews.length}개
+            </span>
+
+            <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-1 rounded font-bold">
+              평균 ★{avgRating.toFixed(1)}
+            </span>
+          </div>
+
+          <div className="mt-4">
+            <Link
+              href={`/pricing?business_id=${business.id}`}
+              className="block w-full text-center bg-amber-400 text-[#1a1a2e] py-2.5 rounded-lg text-[13px] font-bold"
+            >
+              ⭐ VIP 신청하기
+            </Link>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="text-[13px] font-bold text-slate-800 mb-3">최근 리뷰</div>
+
+          {reviewsLoading ? (
+            <div className="text-[12px] text-slate-400">리뷰 불러오는 중...</div>
+          ) : reviews.length === 0 ? (
+            <div className="text-[12px] text-slate-400">아직 등록된 리뷰가 없습니다.</div>
+          ) : (
+            <div className="space-y-3">
+              {reviews.map((r) => (
+                <div key={r.id} className="rounded-xl border border-slate-200 p-3 bg-slate-50">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[13px] font-bold text-slate-800">
+                      ★{Number(r.rating || 0).toFixed(1)}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
+                    </div>
+                  </div>
+
+                  {r.review_text && (
+                    <div className="text-[12px] text-slate-600 mt-2 leading-relaxed">
+                      {r.review_text}
+                    </div>
+                  )}
+
+                  {r.tags && r.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {r.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded-full"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="text-[13px] font-bold text-slate-800 mb-3">정보 수정 요청</div>
+
+          <div className="space-y-4">
+            <div>
+              <div className="text-[11px] font-bold text-slate-400 mb-1">전화번호</div>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[13px]"
+                placeholder="전화번호 입력"
+              />
+            </div>
+
+            <div>
+              <div className="text-[11px] font-bold text-slate-400 mb-1">주소</div>
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[13px]"
+                placeholder="주소 입력"
+              />
+            </div>
+
+            <div>
+              <div className="text-[11px] font-bold text-slate-400 mb-1">웹사이트</div>
+              <input
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[13px]"
+                placeholder="웹사이트 입력"
+              />
+            </div>
+
+            <div>
+              <div className="text-[11px] font-bold text-slate-400 mb-1">설명</div>
+              <textarea
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                rows={4}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[13px] resize-none"
+                placeholder="업소 설명 입력"
+              />
+            </div>
+
+            <div>
+              <div className="text-[11px] font-bold text-slate-400 mb-1">
+                관리자에게 전달할 코멘트
+              </div>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={3}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[13px] resize-none"
+                placeholder="예: 전화번호와 주소를 최신 정보로 변경 요청드립니다."
+              />
+            </div>
+
+            <button
+              onClick={handleSubmit}
+              disabled={requesting}
+              className="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-[13px] font-bold disabled:opacity-50"
+            >
+              {requesting ? '요청 중...' : '수정 요청 제출'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
