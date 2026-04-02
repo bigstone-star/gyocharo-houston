@@ -24,11 +24,11 @@ const TYPE_STYLE: Record<string, string> = {
   news: 'bg-emerald-50 text-emerald-700',
 }
 
-const REGION_TITLE: Record<string, string> = {
-  houston: 'Houston 커뮤니티',
-  dallas: 'Dallas 커뮤니티',
-  fort_worth: 'Fort Worth 커뮤니티',
-  central_texas: 'Central Texas 커뮤니티',
+const REGION_META: Record<string, { title: string; label: string }> = {
+  houston: { title: 'Houston 커뮤니티', label: 'Houston' },
+  dallas: { title: 'Dallas 커뮤니티', label: 'Dallas' },
+  fort_worth: { title: 'Fort Worth 커뮤니티', label: 'Fort Worth' },
+  central_texas: { title: 'Central Texas 커뮤니티', label: 'Central Texas' },
 }
 
 type CommunityPost = {
@@ -59,6 +59,7 @@ export default function CommunityRegionPage({
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'question' | 'recommend' | 'news' | 'general'>('all')
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({})
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -73,18 +74,21 @@ export default function CommunityRegionPage({
     setUser(userData.user || null)
 
     if (userData.user) {
-      const { data: profile } = await sb
+      const { data: profileData } = await sb
         .from('user_profiles')
-        .select('role')
+        .select('id, name, email, role')
         .eq('id', userData.user.id)
         .maybeSingle()
 
-      if (profile?.role === 'admin' || profile?.role === 'super_admin') {
+      setProfile(profileData || null)
+
+      if (profileData?.role === 'admin' || profileData?.role === 'super_admin') {
         setIsAdmin(true)
       } else {
         setIsAdmin(false)
       }
     } else {
+      setProfile(null)
       setIsAdmin(false)
     }
 
@@ -154,9 +158,7 @@ export default function CommunityRegionPage({
       }
 
       const { error: rpcError } = await sb.rpc('decrement_like', { pid: postId })
-      if (rpcError) {
-        console.error('decrement_like error:', rpcError)
-      }
+      if (rpcError) console.error('decrement_like error:', rpcError)
     } else {
       const { error: insertError } = await sb
         .from('community_likes')
@@ -171,9 +173,7 @@ export default function CommunityRegionPage({
       }
 
       const { error: rpcError } = await sb.rpc('increment_like', { pid: postId })
-      if (rpcError) {
-        console.error('increment_like error:', rpcError)
-      }
+      if (rpcError) console.error('increment_like error:', rpcError)
     }
 
     await loadPosts(user)
@@ -203,6 +203,13 @@ export default function CommunityRegionPage({
     router.push(`/community/${region}/${postId}`)
   }
 
+  const handleRegionChange = (nextRegion: string) => {
+    try {
+      localStorage.setItem('gj_region', nextRegion)
+    } catch {}
+    router.push(`/community/${nextRegion}`)
+  }
+
   const filteredPosts = useMemo(() => {
     if (filter === 'all') return posts
     return posts.filter((p) => p.post_type === filter)
@@ -217,7 +224,7 @@ export default function CommunityRegionPage({
     }
   }
 
-  const regionTitle = REGION_TITLE[region] || '커뮤니티'
+  const regionTitle = REGION_META[region]?.title || '커뮤니티'
 
   if (loading) {
     return <div className="p-10 text-center">로딩중...</div>
@@ -225,14 +232,37 @@ export default function CommunityRegionPage({
 
   return (
     <div className="max-w-lg mx-auto p-4 space-y-4 bg-slate-100 min-h-screen">
-      <div className="flex justify-between items-center">
-        <h1 className="text-lg font-bold">{regionTitle}</h1>
-        <Link
-          href={`/community/${region}/write`}
-          className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm font-bold"
-        >
-          글쓰기
-        </Link>
+      <div className="flex justify-between items-center gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold">{regionTitle}</h1>
+          {user && (
+            <div className="text-xs text-slate-500 mt-1">
+              {profile?.name || '회원'}
+              {profile?.role ? ` · ${profile.role}` : ''}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={region}
+            onChange={(e) => handleRegionChange(e.target.value)}
+            className="border border-slate-200 bg-white rounded-lg px-3 py-1.5 text-sm"
+          >
+            {Object.entries(REGION_META).map(([value, meta]) => (
+              <option key={value} value={value}>
+                {meta.label}
+              </option>
+            ))}
+          </select>
+
+          <Link
+            href={`/community/${region}/write?type=${filter === 'all' ? 'general' : filter}`}
+            className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm font-bold"
+          >
+            글쓰기
+          </Link>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
