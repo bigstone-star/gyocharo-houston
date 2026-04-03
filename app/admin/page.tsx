@@ -201,6 +201,12 @@ export default function AdminPage() {
       title: '사이트 보기',
       desc: '실제 홈 화면으로 이동',
     },
+    {
+  href: '/admin/home-sections',
+  icon: '🧩',
+  title: '홈 화면 구성 관리',
+  desc: '홈 화면 순서 / 노출 설정',
+},
   ]
 
   const taskCards = [
