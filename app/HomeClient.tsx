@@ -639,6 +639,11 @@ const openBusiness = (b: any) => {
     ),
   }
 
+  // sections 활성화 목록
+  const enabledSectionKeys = sections
+    .filter((s) => s.is_enabled)
+    .sort((a, b) => a.sort_order - b.sort_order)
+
     return (
     <div className="min-h-screen bg-slate-100 max-w-lg mx-auto">
       <div className="bg-white border-b border-slate-200 px-3 py-3 sticky top-[60px] z-20">
