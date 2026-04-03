@@ -589,6 +589,9 @@ export default function Home() {
 
   const openBusiness = (b: any) => {
   setSel(b)
+  loadReviews(b.id)
+  loadRelatedCommunityPosts(b.id)
+}
 
   setTimeout(() => {
     loadReviews(b.id)
