@@ -62,7 +62,10 @@ export default function HomeBusinessList({
         return (
           <div
             key={b.id}
-            onClick={() => onOpenBusiness(b)}
+            onClick={() => {
+  alert('리스트 클릭됨')
+  onOpenBusiness(b)
+}}
             className={`bg-white rounded-xl border px-4 py-3.5 flex gap-3 cursor-pointer active:scale-[.99] transition-all ${
               b.is_vip ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'
             }`}
