@@ -267,26 +267,32 @@ export default function Home() {
 }, [region, cats])
 
   const loadVipBusinesses = useCallback(async () => {
-    const { data, error } = await sb
-      .from('businesses')
-      .select('*')
-      .eq('is_active', true)
-      .eq('approved', true)
-      .eq('metro_area', region)
-      .eq('is_vip', true)
-      .order('korean_score', { ascending: false, nullsFirst: false })
-      .order('rating', { ascending: false, nullsFirst: false })
-      .order('review_count', { ascending: false, nullsFirst: false })
-      .limit(6)
+  let q = sb
+    .from('businesses')
+    .select('*')
+    .eq('is_active', true)
+    .eq('approved', true)
+    .eq('metro_area', region)
+    .eq('is_vip', true)
 
-    if (error) {
-      console.error('vip business load error:', error)
-      setVipBiz([])
-      return
-    }
+  // ✅ 카테고리 필터 추가
+  if (cat !== '전체') {
+    q = q.eq('category_main', cat)
+  }
 
-    setVipBiz(data || [])
-  }, [region])
+  const { data, error } = await q
+    .order('rating', { ascending: false })
+    .order('review_count', { ascending: false })
+    .limit(6)
+
+  if (error) {
+    console.error(error)
+    setVipBiz([])
+    return
+  }
+
+  setVipBiz(data || [])
+}, [region, cat])
 
   const loadCommunityPreview = useCallback(async () => {
     const { data, error } = await sb
