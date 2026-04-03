@@ -209,29 +209,62 @@ export default function Home() {
   }, [region, search, cat, sort, router])
 
   useEffect(() => {
-    sb.from('businesses')
-      .select('category_main')
-      .eq('is_active', true)
-      .eq('approved', true)
-      .eq('metro_area', region)
-      .then(({ data }) => {
-        if (!data) return
-        const c: Record<string, number> = { 전체: data.length }
-        data.forEach((b: any) => {
-          c[b.category_main] = (c[b.category_main] || 0) + 1
+  const loadCounts = async () => {
+    try {
+      // 전체 업소 수
+      const { count: total, error: totalError } = await sb
+        .from('businesses')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('approved', true)
+        .eq('metro_area', region)
+
+      if (!totalError && total !== null) {
+        setTotalCount(total)
+      }
+
+      // 카테고리별 개수
+      // cats가 아직 없으면 전체만 반영
+      if (!cats || cats.length === 0) {
+        setCounts({ 전체: total || 0 })
+        return
+      }
+
+      const nextCounts: Record<string, number> = {
+        전체: total || 0,
+      }
+
+      const realCategories = cats.filter((c) => c.name !== '전체')
+
+      const results = await Promise.all(
+        realCategories.map(async (category) => {
+          const { count, error } = await sb
+            .from('businesses')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_active', true)
+            .eq('approved', true)
+            .eq('metro_area', region)
+            .eq('category_main', category.name)
+
+          return {
+            name: category.name,
+            count: !error && count !== null ? count : 0,
+          }
         })
-        setCounts(c)
+      )
+
+      results.forEach((item) => {
+        nextCounts[item.name] = item.count
       })
 
-    sb.from('businesses')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true)
-      .eq('approved', true)
-      .eq('metro_area', region)
-      .then(({ count, error }) => {
-        if (!error && count !== null) setTotalCount(count)
-      })
-  }, [region])
+      setCounts(nextCounts)
+    } catch (e) {
+      console.error('loadCounts error:', e)
+    }
+  }
+
+  loadCounts()
+}, [region, cats])
 
   const loadVipBusinesses = useCallback(async () => {
     const { data, error } = await sb
