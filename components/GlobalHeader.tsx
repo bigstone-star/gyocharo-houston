@@ -63,7 +63,7 @@ export default function GlobalHeader() {
     if (data.user) {
       const { data: p } = await sb
         .from('user_profiles')
-        .select('name, nickname, role')
+        .select('name, role')
         .eq('id', data.user.id)
         .maybeSingle()
 
@@ -104,7 +104,6 @@ export default function GlobalHeader() {
       : 'bg-white/10 text-white/90 border border-white/15'
 
   const displayName =
-    profile?.nickname ||
     profile?.name ||
     user?.user_metadata?.name ||
     user?.email?.split('@')?.[0] ||
