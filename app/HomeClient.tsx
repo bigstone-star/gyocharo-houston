@@ -685,7 +685,7 @@ const openBusiness = (b: any) => {
         </div>
       </div>
 
-      {activeSections.map((section) => (
+      {enabledSectionKeys.map((section) => (
         <div key={section.section_key}>
           {sectionMap[section.section_key]}
         </div>
@@ -712,3 +712,4 @@ const openBusiness = (b: any) => {
     </div>
   )
 }
+ 
