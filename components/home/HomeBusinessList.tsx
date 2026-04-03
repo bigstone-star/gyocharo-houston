@@ -14,6 +14,10 @@ const CAT_BG: Record<string, string> = {
   부동산: 'bg-orange-50',
   세탁소: 'bg-teal-50',
   한의원: 'bg-lime-50',
+  종교: 'bg-fuchsia-50',
+  'CPA·회계사': 'bg-cyan-50',
+  여행: 'bg-blue-50',
+  언론사: 'bg-zinc-100',
   기타: 'bg-slate-100',
 }
 
@@ -50,6 +54,7 @@ export default function HomeBusinessList({
       {biz.map((b) => {
         const catInfo =
           cats.find((c) => c.name === b.category_main) || cats[cats.length - 1]
+
         const isFav = favs.includes(b.id)
         const addr =
           b.address?.split(',').slice(0, -2).join(',').trim() || b.address
@@ -103,7 +108,6 @@ export default function HomeBusinessList({
                     )}`}
                     target="_blank"
                     rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
                     className="inline underline"
                   >
                     {addr}
