@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { useEffect, useState } from 'react'
 
 const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,50 +11,198 @@ const sb = createClient(
 )
 
 export default function GlobalHeader() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [currentRegion, setCurrentRegion] = useState('houston')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    sb.auth.getUser().then(({ data }) => setUser(data.user))
+    init()
+    syncRegionFromStorage()
+
+    const handleRegionChanged = (e: any) => {
+      const nextRegion = e?.detail || 'houston'
+      setCurrentRegion(nextRegion)
+    }
+
+    const handleStorage = () => {
+      syncRegionFromStorage()
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('gj_region_changed', handleRegionChanged)
+    window.addEventListener('storage', handleStorage)
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      window.removeEventListener('gj_region_changed', handleRegionChanged)
+      window.removeEventListener('storage', handleStorage)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
   }, [])
 
+  useEffect(() => {
+    syncRegionFromStorage()
+    setMenuOpen(false)
+  }, [pathname])
+
+  const init = async () => {
+    const { data } = await sb.auth.getUser()
+    setUser(data.user)
+
+    if (data.user) {
+      const { data: p } = await sb
+        .from('user_profiles')
+        .select('name, nickname, role')
+        .eq('id', data.user.id)
+        .maybeSingle()
+
+      setProfile(p || null)
+    } else {
+      setProfile(null)
+    }
+  }
+
+  const syncRegionFromStorage = () => {
+    try {
+      const savedRegion = localStorage.getItem('gj_region')
+      if (savedRegion) setCurrentRegion(savedRegion)
+      else setCurrentRegion('houston')
+    } catch {
+      setCurrentRegion('houston')
+    }
+  }
+
+  const signOut = async () => {
+    await sb.auth.signOut()
+    setMenuOpen(false)
+    router.push('/')
+    router.refresh()
+  }
+
+  const isCommunity = pathname?.startsWith('/community')
+  const isDirectory =
+    pathname === '/' ||
+    pathname?.startsWith('/dashboard') ||
+    pathname?.startsWith('/admin') ||
+    pathname?.startsWith('/pricing') ||
+    pathname?.startsWith('/register')
+
+  const navClass = (active: boolean) =>
+    active
+      ? 'bg-amber-400 text-[#1a1a2e] border border-amber-400'
+      : 'bg-white/10 text-white/90 border border-white/15'
+
+  const displayName =
+    profile?.nickname ||
+    profile?.name ||
+    user?.user_metadata?.name ||
+    user?.email?.split('@')?.[0] ||
+    '회원'
+
   return (
-    <div className="bg-[#1a1a2e] text-white px-3 py-2 flex items-center justify-between">
-
-      {/* 로고 */}
-      <Link href="/" className="font-extrabold text-[16px] whitespace-nowrap">
-        <span className="text-amber-400">교차로</span>
-      </Link>
-
-      {/* 메뉴 */}
-      <div className="flex items-center gap-2">
-
+    <div className="bg-[#1a1a2e] text-white px-3 py-3 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 min-w-0">
         <Link
           href="/"
-          className="px-3 py-1 rounded bg-white/10 text-[12px] font-bold whitespace-nowrap"
+          className="font-extrabold text-[18px] tracking-tight whitespace-nowrap shrink-0"
         >
-          업소록
+          <span className="text-amber-400">교차로</span> TEXAS
         </Link>
 
-        <Link
-          href="/community/houston"
-          className="px-3 py-1 rounded bg-white/10 text-[12px] font-bold whitespace-nowrap"
-        >
-          커뮤니티
-        </Link>
+        <div className="flex items-center gap-2 ml-2 min-w-0">
+          <Link
+            href={`/community/${currentRegion}`}
+            className={`px-3 py-1.5 rounded-lg text-[12px] font-bold whitespace-nowrap shrink-0 ${navClass(!!isCommunity)}`}
+          >
+            커뮤니티
+          </Link>
 
+          <Link
+            href="/"
+            className={`px-3 py-1.5 rounded-lg text-[12px] font-bold whitespace-nowrap shrink-0 ${navClass(!!isDirectory)}`}
+          >
+            업소록
+          </Link>
+        </div>
+      </div>
+
+      <div className="relative shrink-0" ref={menuRef}>
         {user ? (
           <>
-            <Link
-              href="/dashboard"
-              className="px-3 py-1 rounded bg-amber-400 text-[#1a1a2e] text-[12px] font-bold whitespace-nowrap"
+            <button
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/10 transition whitespace-nowrap"
             >
-              내정보
-            </Link>
+              <span className="text-[12px] font-semibold text-white/90 whitespace-nowrap">
+                {displayName}
+              </span>
+
+              {profile?.role === 'super_admin' && (
+                <span className="bg-red-500 px-2 py-0.5 rounded text-white text-[10px] font-extrabold whitespace-nowrap">
+                  SA
+                </span>
+              )}
+
+              {profile?.role === 'admin' && (
+                <span className="bg-blue-500 px-2 py-0.5 rounded text-white text-[10px] font-extrabold whitespace-nowrap">
+                  ADMIN
+                </span>
+              )}
+
+              {profile?.role === 'owner' && (
+                <span className="bg-emerald-500 px-2 py-0.5 rounded text-white text-[10px] font-extrabold whitespace-nowrap">
+                  OWNER
+                </span>
+              )}
+
+              <span className="text-white/60 text-[10px]">▾</span>
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <div className="text-[13px] font-bold text-slate-800 truncate">
+                    {displayName}
+                  </div>
+                  {user?.email && (
+                    <div className="text-[11px] text-slate-400 truncate mt-1">
+                      {user.email}
+                    </div>
+                  )}
+                </div>
+
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-4 py-3 text-[13px] font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  내 정보 보기
+                </Link>
+
+                <button
+                  onClick={signOut}
+                  className="w-full text-left px-4 py-3 text-[13px] font-medium text-red-500 hover:bg-red-50"
+                >
+                  로그아웃
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <Link
             href="/auth/login"
-            className="px-3 py-1 rounded bg-white/10 text-[12px] font-bold whitespace-nowrap"
+            className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-[12px] font-bold whitespace-nowrap shrink-0"
           >
             로그인
           </Link>
