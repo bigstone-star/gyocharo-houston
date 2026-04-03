@@ -1,7 +1,5 @@
 'use client'
 
-import Link from 'next/link'
-
 export default function HomeVipBusinesses({
   vipBiz,
   onOpenBusiness,
@@ -9,7 +7,7 @@ export default function HomeVipBusinesses({
   vipBiz: any[]
   onOpenBusiness: (b: any) => void
 }) {
-  if (!vipBiz.length) return null
+  if (!vipBiz || vipBiz.length === 0) return null
 
   return (
     <div className="bg-white rounded-xl border border-amber-200 p-4">
@@ -19,16 +17,9 @@ export default function HomeVipBusinesses({
             ⭐ 지역 추천 업소
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
-            선택된 지역 VIP 업소를 먼저 보여드립니다
+            선택된 지역의 추천 업소입니다
           </div>
         </div>
-
-        <Link
-          href="/pricing"
-          className="text-[11px] font-bold text-amber-700 whitespace-nowrap"
-        >
-          VIP 안내
-        </Link>
       </div>
 
       <div className="space-y-2">
