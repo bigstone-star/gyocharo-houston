@@ -24,11 +24,27 @@ const TYPE_STYLE: Record<string, string> = {
   news: 'bg-emerald-50 text-emerald-700',
 }
 
-const REGION_META: Record<string, { title: string; label: string }> = {
-  houston: { title: 'Houston 커뮤니티', label: 'Houston' },
-  dallas: { title: 'Dallas 커뮤니티', label: 'Dallas' },
-  fort_worth: { title: 'Fort Worth 커뮤니티', label: 'Fort Worth' },
-  central_texas: { title: 'Central Texas 커뮤니티', label: 'Central Texas' },
+const REGION_META: Record<string, { title: string; label: string; subtitle: string }> = {
+  houston: {
+    title: 'Houston 커뮤니티',
+    label: 'Houston',
+    subtitle: '휴스턴 지역 한인 커뮤니티',
+  },
+  dallas: {
+    title: 'Dallas 커뮤니티',
+    label: 'Dallas',
+    subtitle: '달라스 지역 한인 커뮤니티',
+  },
+  fort_worth: {
+    title: 'Fort Worth 커뮤니티',
+    label: 'Fort Worth',
+    subtitle: '포트워스 지역 한인 커뮤니티',
+  },
+  central_texas: {
+    title: 'Central Texas 커뮤니티',
+    label: 'Central Texas',
+    subtitle: '텍사스 중부 한인 커뮤니티',
+  },
 }
 
 type CommunityPost = {
@@ -293,15 +309,15 @@ export default function CommunityRegionPage({
   }
 
   const handleRegionChange = (nextRegion: string) => {
-  try {
-    localStorage.setItem('gj_region', nextRegion)
-    window.dispatchEvent(
-      new CustomEvent('gj_region_changed', { detail: nextRegion })
-    )
-  } catch {}
+    try {
+      localStorage.setItem('gj_region', nextRegion)
+      window.dispatchEvent(
+        new CustomEvent('gj_region_changed', { detail: nextRegion })
+      )
+    } catch {}
 
-  router.push(`/community/${nextRegion}`)
-}
+    router.push(`/community/${nextRegion}`)
+  }
 
   const filteredPosts = useMemo(() => {
     if (filter === 'all') return posts
@@ -317,180 +333,214 @@ export default function CommunityRegionPage({
     }
   }
 
-  const regionTitle = REGION_META[region]?.title || '커뮤니티'
+  const regionMeta = REGION_META[region] || {
+    title: '커뮤니티',
+    label: region,
+    subtitle: '',
+  }
 
   if (loading) {
-    return <div className="p-10 text-center">로딩중...</div>
+    return (
+      <div className="min-h-screen bg-slate-100 max-w-lg mx-auto p-4">
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4 space-y-4 bg-slate-100 min-h-screen">
-      <div className="flex justify-between items-center gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg font-bold">{regionTitle}</h1>
-          {user && (
-            <div className="text-xs text-slate-500 mt-1">
-              {profile?.name || '회원'}
-              {profile?.role ? ` · ${profile.role}` : ''}
+    <div className="min-h-screen bg-slate-100 max-w-lg mx-auto pb-10">
+      <div className="px-4 pt-5 pb-3 bg-white border-b border-slate-200">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[22px] font-extrabold text-slate-900">
+              {regionMeta.title}
             </div>
-          )}
+            <div className="text-[12px] text-slate-500 mt-1">
+              {regionMeta.subtitle}
+            </div>
+            {user && (
+              <div className="text-[11px] text-slate-400 mt-2">
+                {profile?.name || '회원'}
+                {profile?.role ? ` · ${profile.role}` : ''}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={region}
+              onChange={(e) => handleRegionChange(e.target.value)}
+              className="border border-slate-200 bg-white rounded-lg px-3 py-2 text-[13px] font-bold text-slate-700"
+            >
+              {Object.entries(REGION_META).map(([value, meta]) => (
+                <option key={value} value={value}>
+                  {meta.label}
+                </option>
+              ))}
+            </select>
+
+            <Link
+              href={`/community/${region}/write?type=${filter === 'all' ? 'general' : filter}`}
+              className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-[13px] font-bold whitespace-nowrap"
+            >
+              글쓰기
+            </Link>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <select
-            value={region}
-            onChange={(e) => handleRegionChange(e.target.value)}
-            className="border border-slate-200 bg-white rounded-lg px-3 py-1.5 text-sm"
-          >
-            {Object.entries(REGION_META).map(([value, meta]) => (
-              <option key={value} value={value}>
-                {meta.label}
-              </option>
-            ))}
-          </select>
-
-          <Link
-            href={`/community/${region}/write?type=${filter === 'all' ? 'general' : filter}`}
-            className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm font-bold"
-          >
-            글쓰기
-          </Link>
-        </div>
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        {[
-          ['all', '전체'],
-          ['question', '질문'],
-          ['recommend', '추천'],
-          ['news', '소식'],
-          ['general', '일반'],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key as any)}
-            className={`px-3 py-1.5 rounded text-xs font-bold ${
-              filter === key ? 'bg-indigo-600 text-white' : 'bg-white border text-slate-600'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-
-        {isAdmin && (
-          <button
-            onClick={() => setShowHidden((prev) => !prev)}
-            className="px-3 py-1.5 rounded text-xs font-bold bg-red-50 text-red-600 border border-red-100"
-          >
-            {showHidden ? '숨김 숨기기' : '숨김 보기'}
-          </button>
-        )}
-      </div>
-
-      {filteredPosts.length === 0 ? (
-        <div className="bg-white p-6 rounded-xl border text-center text-sm text-slate-400">
-          등록된 글이 없습니다.
-        </div>
-      ) : (
-        filteredPosts.map((p) => (
-          <div
-            key={p.id}
-            onClick={() => goDetail(p.id)}
-            className="bg-white p-4 rounded-xl border shadow-sm cursor-pointer hover:bg-slate-50 transition"
-          >
-            <div className="flex items-center gap-2 text-xs mb-2 flex-wrap">
-              {p.is_pinned && (
-                <span className="bg-red-50 text-red-600 px-2 py-1 rounded-full font-bold">
-                  공지
-                </span>
-              )}
-
-              {!p.is_active && (
-                <span className="bg-red-100 text-red-600 px-2 py-1 rounded-full font-bold">
-                  숨김됨
-                </span>
-              )}
-
-              <span className={`px-2 py-1 rounded-full font-bold ${TYPE_STYLE[p.post_type]}`}>
-                {TYPE_LABEL[p.post_type]}
-              </span>
-
-              <span className="text-gray-400">{formatDate(p.created_at)}</span>
-            </div>
-
-            <div className="font-bold text-lg text-slate-900 leading-snug">
-              {p.title}
-            </div>
-
-            <div className="text-xs text-gray-400 mt-1">
-              {p.nickname || `이웃-${p.user_id.slice(0, 6)}`}
-            </div>
-
-            <div className="text-sm text-slate-700 mt-2 line-clamp-3 whitespace-pre-wrap leading-relaxed">
-              {p.content}
-            </div>
-
-            <div className="flex items-center gap-4 mt-3 text-sm flex-wrap">
+        <div className="mt-4 overflow-x-auto">
+          <div className="flex gap-2 min-w-max">
+            {[
+              ['all', '전체'],
+              ['question', '질문'],
+              ['recommend', '추천'],
+              ['news', '소식'],
+              ['general', '일반'],
+            ].map(([key, label]) => (
               <button
-                onClick={(e) => toggleLike(e, p.id)}
-                className={`font-bold ${
-                  likedMap[p.id] ? 'text-red-500' : 'text-gray-400'
+                key={key}
+                onClick={() => setFilter(key as any)}
+                className={`px-4 py-2 rounded-full text-[12px] font-bold transition ${
+                  filter === key
+                    ? 'bg-amber-400 text-[#1a1a2e]'
+                    : 'bg-slate-100 text-slate-500'
                 }`}
               >
-                ❤️ {p.like_count || 0}
+                {label}
               </button>
+            ))}
 
-              <Link
-                href={`/community/${region}/${p.id}`}
-                onClick={(e) => e.stopPropagation()}
-                className="text-slate-500 font-bold"
+            {isAdmin && (
+              <button
+                onClick={() => setShowHidden((prev) => !prev)}
+                className={`px-4 py-2 rounded-full text-[12px] font-bold transition ${
+                  showHidden
+                    ? 'bg-red-500 text-white'
+                    : 'bg-red-50 text-red-600'
+                }`}
               >
-                댓글 {p.comment_count || 0}
-              </Link>
+                {showHidden ? '숨김 포함' : '숨김 보기'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
 
-              {!isAdmin && (
-                <button
-                  onClick={(e) => reportPost(e, p.id)}
-                  className={`text-xs font-bold ${
-                    reportedMap[p.id] ? 'text-slate-400' : 'text-orange-500'
-                  }`}
-                >
-                  {reportedMap[p.id] ? '신고완료' : '신고'}
-                </button>
-              )}
-
-              {isAdmin && p.is_active !== false && (
-                <button
-                  onClick={(e) => hidePost(e, p.id)}
-                  className="text-xs text-red-500 font-bold"
-                >
-                  숨김
-                </button>
-              )}
-
-              {isAdmin && p.is_active === false && (
-                <button
-                  onClick={(e) => restorePost(e, p.id)}
-                  className="text-xs text-green-600 font-bold"
-                >
-                  복구
-                </button>
-              )}
-
-              {isAdmin && (
-                <button
-                  onClick={(e) => togglePinned(e, p.id, !p.is_pinned)}
-                  className={`text-xs font-bold ${
-                    p.is_pinned ? 'text-indigo-600' : 'text-slate-500'
-                  }`}
-                >
-                  {p.is_pinned ? '공지해제' : '공지고정'}
-                </button>
-              )}
+      <div className="px-4 pt-4 space-y-3">
+        {filteredPosts.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+            <div className="text-[14px] font-bold text-slate-600">
+              등록된 글이 없습니다.
+            </div>
+            <div className="text-[12px] text-slate-400 mt-2">
+              첫 글을 남겨 지역 커뮤니티를 시작해보세요.
             </div>
           </div>
-        ))
-      )}
+        ) : (
+          filteredPosts.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => goDetail(p.id)}
+              className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm cursor-pointer hover:bg-slate-50 transition"
+            >
+              <div className="flex items-center gap-2 text-[11px] flex-wrap mb-2">
+                {p.is_pinned && (
+                  <span className="bg-red-50 text-red-600 px-2 py-1 rounded-full font-bold">
+                    공지
+                  </span>
+                )}
+
+                {p.is_active === false && (
+                  <span className="bg-red-100 text-red-600 px-2 py-1 rounded-full font-bold">
+                    숨김됨
+                  </span>
+                )}
+
+                <span className={`px-2 py-1 rounded-full font-bold ${TYPE_STYLE[p.post_type]}`}>
+                  {TYPE_LABEL[p.post_type]}
+                </span>
+
+                <span className="text-slate-400">{formatDate(p.created_at)}</span>
+              </div>
+
+              <div className="text-[17px] font-extrabold text-slate-900 leading-snug">
+                {p.title}
+              </div>
+
+              <div className="text-[11px] text-slate-400 mt-2">
+                {p.nickname || `이웃-${p.user_id.slice(0, 6)}`}
+              </div>
+
+              <div className="text-[13px] text-slate-600 mt-3 line-clamp-2 whitespace-pre-wrap leading-relaxed">
+                {p.content}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 mt-4">
+                <div className="flex items-center gap-4 text-[12px] flex-wrap">
+                  <button
+                    onClick={(e) => toggleLike(e, p.id)}
+                    className={`font-bold ${
+                      likedMap[p.id] ? 'text-red-500' : 'text-slate-400'
+                    }`}
+                  >
+                    ❤️ {p.like_count || 0}
+                  </button>
+
+                  <Link
+                    href={`/community/${region}/${p.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-slate-500 font-bold"
+                  >
+                    댓글 {p.comment_count || 0}
+                  </Link>
+
+                  {!isAdmin && (
+                    <button
+                      onClick={(e) => reportPost(e, p.id)}
+                      className={`font-bold ${
+                        reportedMap[p.id] ? 'text-slate-400' : 'text-orange-500'
+                      }`}
+                    >
+                      {reportedMap[p.id] ? '신고완료' : '신고'}
+                    </button>
+                  )}
+                </div>
+
+                {isAdmin && (
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {p.is_active !== false ? (
+                      <button
+                        onClick={(e) => hidePost(e, p.id)}
+                        className="text-[11px] font-bold text-red-500"
+                      >
+                        숨김
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => restorePost(e, p.id)}
+                        className="text-[11px] font-bold text-green-600"
+                      >
+                        복구
+                      </button>
+                    )}
+
+                    <button
+                      onClick={(e) => togglePinned(e, p.id, !p.is_pinned)}
+                      className={`text-[11px] font-bold ${
+                        p.is_pinned ? 'text-indigo-600' : 'text-slate-500'
+                      }`}
+                    >
+                      {p.is_pinned ? '공지해제' : '공지고정'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   )
 }
