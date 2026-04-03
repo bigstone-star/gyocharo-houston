@@ -79,6 +79,7 @@ type CommunityPreviewPost = {
   like_count?: number | null
   comment_count?: number | null
   created_at?: string | null
+  business_id?: string | null
 }
 
 export default function Home() {
@@ -90,6 +91,7 @@ export default function Home() {
   const [biz, setBiz] = useState<any[]>([])
   const [vipBiz, setVipBiz] = useState<any[]>([])
   const [communityPosts, setCommunityPosts] = useState<CommunityPreviewPost[]>([])
+  const [relatedCommunityPosts, setRelatedCommunityPosts] = useState<CommunityPreviewPost[]>([])
 
   const [siteName, setSiteName] = useState('교차로 휴스턴')
   const [headerLogoUrl, setHeaderLogoUrl] = useState('')
@@ -129,6 +131,7 @@ export default function Home() {
   })
 
   const [claimLoading, setClaimLoading] = useState(false)
+  const [relatedPostsLoading, setRelatedPostsLoading] = useState(false)
 
   const SORTS = ['rating', 'review_count', 'name_en'] as const
   const SORT_LABELS: Record<string, string> = {
@@ -420,6 +423,33 @@ export default function Home() {
     load()
   }, [loadVipBusinesses, loadCommunityPreview, load])
 
+  const loadRelatedCommunityPosts = useCallback(
+    async (businessId: string) => {
+      setRelatedPostsLoading(true)
+
+      const { data, error } = await sb
+        .from('community_posts')
+        .select('id, region, post_type, title, like_count, comment_count, created_at, business_id')
+        .eq('region', region)
+        .eq('is_active', true)
+        .eq('business_id', businessId)
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(4)
+
+      if (error) {
+        console.error('related community posts load error:', error)
+        setRelatedCommunityPosts([])
+        setRelatedPostsLoading(false)
+        return
+      }
+
+      setRelatedCommunityPosts((data || []) as CommunityPreviewPost[])
+      setRelatedPostsLoading(false)
+    },
+    [region]
+  )
+
   const loadReviews = useCallback(
     async (businessId: string) => {
       setReviewLoading(true)
@@ -615,6 +645,7 @@ export default function Home() {
     setSel(null)
     setReviews([])
     setMyReview(null)
+    setRelatedCommunityPosts([])
     setReviewForm({
       rating: 5,
       review_text: '',
@@ -816,6 +847,7 @@ export default function Home() {
                     onClick={async () => {
                       setSel(b)
                       await loadReviews(b.id)
+                      await loadRelatedCommunityPosts(b.id)
                     }}
                     className="w-full text-left rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-3"
                   >
@@ -1205,6 +1237,49 @@ export default function Home() {
             </div>
 
             <div className="px-5 pt-4 border-t border-slate-100 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-[16px] font-extrabold text-slate-900">
+                    관련 커뮤니티 글
+                  </div>
+                  <div className="text-[12px] text-slate-400 mt-0.5">
+                    이 업소와 연결된 글을 바로 볼 수 있습니다
+                  </div>
+                </div>
+              </div>
+
+              {relatedPostsLoading ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : relatedCommunityPosts.length === 0 ? (
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-[13px] text-slate-400 mb-4">
+                  아직 연결된 커뮤니티 글이 없습니다.
+                </div>
+              ) : (
+                <div className="space-y-2 mb-4">
+                  {relatedCommunityPosts.map((p) => (
+                    <Link
+                      key={p.id}
+                      href={`/community/${p.region}/${p.id}`}
+                      className="block rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                          {postTypeLabel(p.post_type)}
+                        </span>
+                      </div>
+                      <div className="text-[13px] font-bold text-slate-800">
+                        {p.title}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1">
+                        댓글 {p.comment_count || 0} · ❤️ {p.like_count || 0}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-[16px] font-extrabold text-slate-900">
