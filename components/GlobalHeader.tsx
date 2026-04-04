@@ -139,7 +139,7 @@ export default function GlobalHeader() {
       src={logoUrl}
       alt="logo"
       style={{
-        height: '22px',
+        height: '25px',
         maxHeight: '26px',
         width: 'auto',
         objectFit: 'contain',
