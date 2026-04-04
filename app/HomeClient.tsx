@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import HomeCommunityLatest from '@/components/home/HomeCommunityLatest'
@@ -225,7 +225,6 @@ export default function Home() {
   const hasWrittenUrl = useRef(false)
 
   const [sections, setSections] = useState<HomeSection[]>([])
-
   const [biz, setBiz] = useState<any[]>([])
   const [vipBiz, setVipBiz] = useState<any[]>([])
   const [communityPosts, setCommunityPosts] = useState<CommunityPreviewPost[]>([])
@@ -243,6 +242,7 @@ export default function Home() {
   const [cats, setCats] = useState<Category[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [region, setRegion] = useState('houston')
+  const [approvalSavingId, setApprovalSavingId] = useState<string | null>(null)
 
   const [reviews, setReviews] = useState<any[]>([])
   const [reviewLoading, setReviewLoading] = useState(false)
@@ -256,7 +256,6 @@ export default function Home() {
 
   const [claimLoading, setClaimLoading] = useState(false)
   const [relatedPostsLoading, setRelatedPostsLoading] = useState(false)
-  const [approvalSavingId, setApprovalSavingId] = useState<string | null>(null)
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin'
 
@@ -316,7 +315,6 @@ export default function Home() {
     }
 
     const { data, error } = await q
-      .order('approved', { ascending: false })
       .order('rating', { ascending: false })
       .order('review_count', { ascending: false })
       .limit(6)
@@ -397,7 +395,6 @@ export default function Home() {
     }
 
     q = q
-      .order('approved', { ascending: false })
       .order('is_vip', { ascending: false })
       .order('rating', { ascending: false, nullsFirst: false })
       .order('review_count', { ascending: false, nullsFirst: false })
@@ -427,10 +424,6 @@ export default function Home() {
         .filter((item) => item.score > 0)
         .sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score
-
-          const aApproved = a.business?.approved ? 1 : 0
-          const bApproved = b.business?.approved ? 1 : 0
-          if (bApproved !== aApproved) return bApproved - aApproved
 
           const aVip = a.business?.is_vip ? 1 : 0
           const bVip = b.business?.is_vip ? 1 : 0
@@ -465,117 +458,57 @@ export default function Home() {
         .map((item) => item.business)
     } else {
       filtered = applyBusinessSort(filtered, sort)
-      if (isAdmin) {
-        filtered = [...filtered].sort(
-          (a, b) => Number(b?.approved ? 1 : 0) - Number(a?.approved ? 1 : 0)
-        )
-      }
     }
 
     setBiz(filtered.slice(0, 20))
     setLoading(false)
   }, [cat, search, sort, region, isAdmin])
 
-  const loadReviews = useCallback(
-    async (businessId: string) => {
-      setReviewLoading(true)
+  const toggleApprovedFromHome = useCallback(
+    async (business: any) => {
+      if (!isAdmin) return
+      if (!business?.id) return
 
-      const { data, error } = await sb
-        .from('reviews')
-        .select('*')
-        .eq('business_id', businessId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
+      const nextApproved = !business.approved
+      const confirmMessage = nextApproved
+        ? '이 업소를 승인하시겠습니까?'
+        : '이 업소의 승인을 해제하시겠습니까? 일반 사용자 홈에서는 숨겨집니다.'
 
-      if (error) {
-        console.error('reviews load error:', error)
-        setReviews([])
-        setMyReview(null)
-        setReviewLoading(false)
-        return
-      }
+      const ok = window.confirm(confirmMessage)
+      if (!ok) return
 
-      const list = data || []
-      setReviews(list)
+      setApprovalSavingId(business.id)
 
-      if (user) {
-        const mine = list.find((r: any) => r.user_id === user.id) || null
-        setMyReview(mine)
-
-        if (mine) {
-          setReviewForm({
-            rating: mine.rating || 5,
-            review_text: mine.review_text || '',
-            tags: mine.tags || [],
-          })
-        } else {
-          setReviewForm({
-            rating: 5,
-            review_text: '',
-            tags: [],
-          })
-        }
-      } else {
-        setMyReview(null)
-        setReviewForm({
-          rating: 5,
-          review_text: '',
-          tags: [],
-        })
-      }
-
-      setReviewLoading(false)
-    },
-    [user]
-  )
-
-  const toggleApprovedFromHome = useCallback(async (business: any, e?: any) => {
-    e?.stopPropagation?.()
-
-    if (!isAdmin || !business?.id || approvalSavingId) return
-
-    const nextApproved = !business.approved
-    const confirmMessage = nextApproved
-      ? '이 업소를 승인하시겠습니까?'
-      : '승인을 취소하면 일반 사용자 홈에서는 바로 사라집니다. 계속할까요?'
-
-    if (!window.confirm(confirmMessage)) return
-
-    setApprovalSavingId(business.id)
-
-    try {
       const { error } = await sb
         .from('businesses')
         .update({ approved: nextApproved })
         .eq('id', business.id)
 
-      if (error) throw error
+      setApprovalSavingId(null)
 
-      setBiz((prev) => {
-        const updated = prev.map((item) =>
-          item.id === business.id ? { ...item, approved: nextApproved } : item
-        )
-
-        return isAdmin ? updated : updated.filter((item) => item.approved)
-      })
-
-      setVipBiz((prev) =>
-        prev.map((item) =>
-          item.id === business.id ? { ...item, approved: nextApproved } : item
-        )
-      )
-
-      if (sel?.id === business.id) {
-        setSel((prev: any) => (prev ? { ...prev, approved: nextApproved } : prev))
+      if (error) {
+        alert('승인 상태 변경 실패: ' + error.message)
+        return
       }
 
-      await Promise.all([load(), loadVipBusinesses()])
-    } catch (error: any) {
-      alert('승인 상태 변경 실패: ' + (error?.message || '알 수 없는 오류'))
-    } finally {
-      setApprovalSavingId(null)
-    }
-  }, [isAdmin, approvalSavingId, sel?.id, load, loadVipBusinesses])
+      setBiz((prev) =>
+        prev
+          .map((item) =>
+            item.id === business.id ? { ...item, approved: nextApproved } : item
+          )
+          .filter((item) => (isAdmin ? true : item.approved === true))
+      )
+
+      setVipBiz((prev) =>
+        prev
+          .map((item) =>
+            item.id === business.id ? { ...item, approved: nextApproved } : item
+          )
+          .filter((item) => (isAdmin ? true : item.approved === true))
+      )
+    },
+    [isAdmin]
+  )
 
   useEffect(() => {
     try {
@@ -701,7 +634,7 @@ export default function Home() {
 
         const results = await Promise.all(
           realCategories.map(async (category) => {
-            let categoryQuery = sb
+            let countQuery = sb
               .from('businesses')
               .select('id', { count: 'exact', head: true })
               .eq('is_active', true)
@@ -709,10 +642,10 @@ export default function Home() {
               .eq('category_main', category.name)
 
             if (!isAdmin) {
-              categoryQuery = categoryQuery.eq('approved', true)
+              countQuery = countQuery.eq('approved', true)
             }
 
-            const { count, error } = await categoryQuery
+            const { count, error } = await countQuery
 
             return {
               name: category.name,
@@ -740,6 +673,59 @@ export default function Home() {
     loadVipBusinesses()
     load()
   }, [loadCommunityPreview, loadVipBusinesses, load])
+
+  const loadReviews = useCallback(
+    async (businessId: string) => {
+      setReviewLoading(true)
+
+      const { data, error } = await sb
+        .from('reviews')
+        .select('*')
+        .eq('business_id', businessId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('reviews load error:', error)
+        setReviews([])
+        setMyReview(null)
+        setReviewLoading(false)
+        return
+      }
+
+      const list = data || []
+      setReviews(list)
+
+      if (user) {
+        const mine = list.find((r: any) => r.user_id === user.id) || null
+        setMyReview(mine)
+
+        if (mine) {
+          setReviewForm({
+            rating: mine.rating || 5,
+            review_text: mine.review_text || '',
+            tags: mine.tags || [],
+          })
+        } else {
+          setReviewForm({
+            rating: 5,
+            review_text: '',
+            tags: [],
+          })
+        }
+      } else {
+        setMyReview(null)
+        setReviewForm({
+          rating: 5,
+          review_text: '',
+          tags: [],
+        })
+      }
+
+      setReviewLoading(false)
+    },
+    [user]
+  )
 
   const toggleReviewTag = (tag: string) => {
     setReviewForm((prev) => {
@@ -977,7 +963,9 @@ export default function Home() {
       </div>
 
       {enabledSectionKeys.map((section) => (
-        <div key={section.section_key}>{sectionMap[section.section_key]}</div>
+        <div key={section.section_key}>
+          {sectionMap[section.section_key]}
+        </div>
       ))}
 
       <HomeBusinessModal
@@ -994,7 +982,6 @@ export default function Home() {
         relatedPostsLoading={relatedPostsLoading}
         claimLoading={claimLoading}
         avgRating={avgRating}
-        reviewTags={REVIEW_TAGS}
         onToggleReviewTag={toggleReviewTag}
         onSaveReview={saveReview}
         onRequestOwnerClaim={requestOwnerClaim}
