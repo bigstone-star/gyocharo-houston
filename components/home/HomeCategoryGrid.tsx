@@ -36,21 +36,19 @@ export default function HomeCategoryGrid({
               key={c.name}
               onClick={() => onSelectCategory(c.name)}
               style={{
-                width: '18%',          // 👉 5개 고정
-                height: '62px',
-                borderRadius: '10px',
-                border: '1px solid #e2e8f0',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: isActive
-  ? 'var(--category_active_bg)'
-  : '#f8fafc',
-                color: isActive ? '#fff' : '#334155',
-                fontSize: '11px',
-                fontWeight: '700',
-              }}
+  width: '18%',
+  height: '62px',
+  borderRadius: '10px',
+  border: isActive ? '1px solid var(--category_active_bg)' : '1px solid #e2e8f0',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: isActive ? 'var(--category_active_bg)' : '#f8fafc',
+  color: isActive ? '#fff' : '#334155',
+  fontSize: '11px',
+  fontWeight: '700',
+}}
             >
               <div style={{ fontSize: '18px' }}>{c.icon}</div>
               <div style={{ marginTop: '4px' }}>{c.name}</div>
