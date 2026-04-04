@@ -314,6 +314,32 @@ export default function AdminBusinessesPage() {
     }
 
     const { data, error } = await q
+      let nextList = (data || []) as BusinessRow[]
+
+const term = (searchTerm !== undefined ? searchTerm : search)
+  .toLowerCase()
+  .trim()
+
+if (term) {
+  const terms = term.split(' ').filter(Boolean)
+
+  nextList = nextList.filter((b) => {
+    const text = [
+      b.name_kr,
+      b.name_en,
+      b.category_main,
+      b.category_sub,
+      b.address,
+      b.city,
+      b.phone,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return terms.some((t) => text.includes(t))
+  })
+}
       .order('created_at', { ascending: false })
       .limit(200)
 
@@ -321,7 +347,7 @@ export default function AdminBusinessesPage() {
       setErrorMsg('업소 목록을 불러오지 못했습니다.')
       setList([])
     } else {
-      setList((data || []) as BusinessRow[])
+      setList(nextList)
     }
 
     setLoading(false)
