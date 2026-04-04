@@ -44,7 +44,7 @@ export default function HomeCategoryGrid({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: isActive ? '#4f46e5' : '#f8fafc',
+                background: isActive ? '#6a9247' : '#f8fafc',
                 color: isActive ? '#fff' : '#334155',
                 fontSize: '11px',
                 fontWeight: '700',
