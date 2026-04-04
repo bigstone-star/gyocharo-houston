@@ -261,50 +261,37 @@ export default function Home() {
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin'
 
+  const loadAuthUser = useCallback(async () => {
+    const { data } = await sb.auth.getUser()
+    const currentUser = data.user ?? null
+    setUser(currentUser)
+
+    if (!currentUser) {
+      setUserRole(null)
+      return
+    }
+
+    const { data: profile } = await sb
+      .from('user_profiles')
+      .select('role')
+      .eq('id', currentUser.id)
+      .single()
+
+    setUserRole(profile?.role || null)
+  }, [loadAuthUser, router])
+
   useEffect(() => {
     try {
       setFavs(JSON.parse(localStorage.getItem('gj_favs') || '[]'))
     } catch {}
 
-    const loadAuth = async () => {
-      const { data } = await sb.auth.getUser()
-      const currentUser = data.user ?? null
-      setUser(currentUser)
-
-      if (!currentUser) {
-        setUserRole(null)
-        return
-      }
-
-      const { data: profile } = await sb
-        .from('user_profiles')
-        .select('role')
-        .eq('id', currentUser.id)
-        .single()
-
-      setUserRole(profile?.role || null)
-    }
-
-    loadAuth()
+    loadAuthUser()
 
     const {
       data: { subscription },
-    } = sb.auth.onAuthStateChange(async (_, s) => {
-      const currentUser = s?.user ?? null
-      setUser(currentUser)
-
-      if (!currentUser) {
-        setUserRole(null)
-        return
-      }
-
-      const { data: profile } = await sb
-        .from('user_profiles')
-        .select('role')
-        .eq('id', currentUser.id)
-        .single()
-
-      setUserRole(profile?.role || null)
+    } = sb.auth.onAuthStateChange(async () => {
+      await loadAuthUser()
+      router.refresh()
     })
 
     sb.from('categories')
