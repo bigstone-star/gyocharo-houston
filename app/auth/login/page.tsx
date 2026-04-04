@@ -62,7 +62,7 @@ export default function LoginPage() {
         <div className="text-center mb-6">
           {!logoBroken ? (
             <img
-              src="/icon/logo.svg"
+              src="/icons/logo.svg"
               alt="KOINUS"
               className="h-10 mx-auto mb-3 object-contain"
               onError={() => setLogoBroken(true)}
@@ -102,38 +102,30 @@ export default function LoginPage() {
               </h2>
 
               <button
-                onClick={loginGoogle}
-                disabled={!!loading}
-                className="w-full h-[52px] flex items-center justify-center gap-3 rounded-full bg-slate-100 font-semibold text-slate-800 mb-3 disabled:opacity-60"
-              >
-                {loading === 'google' ? (
-                  <div className="w-5 h-5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <img
-                    src="/icons/google.svg"
-                    alt="Google"
-                    className="w-5 h-5"
-                  />
-                )}
-                Continue with Google
-              </button>
+  onClick={loginGoogle}
+  disabled={!!loading}
+  className="w-full h-[52px] flex items-center justify-center gap-3 rounded-full bg-slate-100 font-semibold text-slate-800 mb-3 disabled:opacity-60"
+>
+  {loading === 'google' ? (
+    <div className="w-5 h-5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+  ) : (
+    <img src="/icons/google.svg" alt="Google" className="w-6 h-6" />
+  )}
+  Continue with Google
+</button>
 
-              <button
-                onClick={loginKakao}
-                disabled={!!loading}
-                className="w-full h-[52px] flex items-center justify-center gap-3 rounded-full bg-[#FEE500] font-semibold text-[#3C1E1E] mb-5 disabled:opacity-60"
-              >
-                {loading === 'kakao' ? (
-                  <div className="w-5 h-5 border-2 border-yellow-700 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <img
-                    src="/icons/kakao.svg"
-                    alt="Kakao"
-                    className="w-5 h-5"
-                  />
-                )}
-                Continue with Kakao
-              </button>
+<button
+  onClick={loginKakao}
+  disabled={!!loading}
+  className="w-full h-[52px] flex items-center justify-center gap-3 rounded-full bg-[#FEE500] font-semibold text-[#3C1E1E] mb-5 disabled:opacity-60"
+>
+  {loading === 'kakao' ? (
+    <div className="w-5 h-5 border-2 border-yellow-700 border-t-transparent rounded-full animate-spin" />
+  ) : (
+    <img src="/icons/kakao.svg" alt="Kakao" className="w-5 h-5" />
+  )}
+  Continue with Kakao
+</button>
 
               <div className="flex items-center gap-3 mb-5">
                 <div className="flex-1 h-px bg-slate-200" />
