@@ -35,12 +35,16 @@ export default function HomeBusinessList({
   favs,
   onToggleFav,
   onOpenBusiness,
+  isAdmin = false,
+  onToggleApproved,
 }: {
   biz: any[]
   cats: Category[]
   favs: string[]
   onToggleFav: (id: string, e: any) => void
   onOpenBusiness: (b: any) => void
+  isAdmin?: boolean
+  onToggleApproved?: (b: any) => void
 }) {
   if (!biz || biz.length === 0) {
     return (
@@ -95,6 +99,23 @@ export default function HomeBusinessList({
                     {b.category_sub}
                   </span>
                 )}
+
+                {isAdmin && onToggleApproved && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleApproved(b)
+                    }}
+                    className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                      b.approved
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}
+                  >
+                    {b.approved ? '승인해제' : '승인'}
+                  </button>
+                )}
               </div>
 
               <div className="text-[16px] font-bold text-slate-900 truncate">
@@ -104,13 +125,13 @@ export default function HomeBusinessList({
               {addr && (
                 <div className="text-[12px] text-slate-500 truncate mt-0.5">
                   <a
-  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
-  target="_blank"
-  rel="noreferrer"
-  onClick={(e) => e.stopPropagation()}  // 🔥 추가
->
-  {addr}
-</a>
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {addr}
+                  </a>
                 </div>
               )}
 
