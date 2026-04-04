@@ -274,37 +274,6 @@ export default function AdminBusinessesPage() {
 
   const loadList = useCallback(
 
-
-  async function loadStats() {
-    try {
-      const [t, v, pd] = await Promise.all([
-        sb.from('businesses').select('id', { count: 'exact', head: true }).eq('is_active', true),
-        sb.from('businesses').select('id', { count: 'exact', head: true }).eq('is_vip', true),
-        sb.from('businesses').select('id', { count: 'exact', head: true }).eq('data_source', 'user_registered').eq('is_active', true),
-      ])
-
-      setStats({
-        total: t.count || 0,
-        vip: v.count || 0,
-        pending: pd.count || 0,
-      })
-    } catch {
-      setErrorMsg('통계를 불러오는 중 오류가 발생했습니다.')
-    }
-  }
-
-  async function load() {
-    try {
-      setLoading(true)
-      await loadStats()
-      await loadList()
-    } catch {
-      setErrorMsg('통계를 불러오는 중 오류가 발생했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function loadCats() {
     try {
       setCatLoading(true)
