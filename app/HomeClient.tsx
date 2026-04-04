@@ -61,198 +61,162 @@ type HomeSection = {
   sort_order: number
 }
 
-
-function normalizeSearchText(value?: string | null) {
-  return (value || '')
-    .toString()
+function normalizeText(value: any) {
+  return String(value || '')
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-function normalizeCompactSearchText(value?: string | null) {
-  return normalizeSearchText(value).replace(/[\s\-_,./()]+/g, '')
+function tokenizeSearch(value: string) {
+  return normalizeText(value)
+    .split(' ')
+    .map((token) => token.trim())
+    .filter(Boolean)
 }
 
-function tokenizeSearchQuery(value?: string) {
-  const normalized = normalizeSearchText(value)
-
-  if (!normalized) return []
-
-  return Array.from(
-    new Set(
-      normalized
-        .split(' ')
-        .map((token) => token.trim())
-        .filter(Boolean)
-    )
-  )
+function getSortableName(business: any) {
+  return normalizeText(business?.name_kr || business?.name_en || '')
 }
 
-function getBusinessSearchFields(row: any) {
-  const fields = {
-    name_kr: normalizeSearchText(row?.name_kr),
-    name_en: normalizeSearchText(row?.name_en),
-    category_main: normalizeSearchText(row?.category_main),
-    category_sub: normalizeSearchText(row?.category_sub),
-    address: normalizeSearchText(row?.address),
-    city: normalizeSearchText(row?.city),
-    phone: normalizeSearchText(row?.phone),
-    metro_area: normalizeSearchText(row?.metro_area),
-  }
+function applyBusinessSort(list: any[], sort: SortType) {
+  const copied = [...list]
 
-  const joined = normalizeSearchText(Object.values(fields).filter(Boolean).join(' '))
-  const compact = normalizeCompactSearchText(Object.values(fields).filter(Boolean).join(' '))
+  copied.sort((a, b) => {
+    const aVip = a?.is_vip ? 1 : 0
+    const bVip = b?.is_vip ? 1 : 0
+    if (bVip !== aVip) return bVip - aVip
 
-  return { fields, joined, compact }
+    if (sort === 'name_en') {
+      const byName = getSortableName(a).localeCompare(getSortableName(b), 'ko')
+      if (byName !== 0) return byName
+    } else if (sort === 'review_count') {
+      const byReviewCount = Number(b?.review_count || 0) - Number(a?.review_count || 0)
+      if (byReviewCount !== 0) return byReviewCount
+
+      const byRating = Number(b?.rating || 0) - Number(a?.rating || 0)
+      if (byRating !== 0) return byRating
+    } else {
+      const byRating = Number(b?.rating || 0) - Number(a?.rating || 0)
+      if (byRating !== 0) return byRating
+
+      const byReviewCount = Number(b?.review_count || 0) - Number(a?.review_count || 0)
+      if (byReviewCount !== 0) return byReviewCount
+    }
+
+    const fallbackByName = getSortableName(a).localeCompare(getSortableName(b), 'ko')
+    if (fallbackByName !== 0) return fallbackByName
+
+    return 0
+  })
+
+  return copied
 }
 
-function getBusinessSearchScore(row: any, rawQuery?: string) {
-  const normalizedQuery = normalizeSearchText(rawQuery)
-  if (!normalizedQuery) return 0
+function getSearchScore(business: any, rawSearch: string) {
+  const normalizedSearch = normalizeText(rawSearch)
+  const tokens = tokenizeSearch(rawSearch)
 
-  const tokens = tokenizeSearchQuery(rawQuery)
-  const compactQuery = normalizeCompactSearchText(rawQuery)
-  const { fields, joined, compact } = getBusinessSearchFields(row)
+  if (!normalizedSearch || tokens.length === 0) return 0
 
-  if (!joined) return 0
+  const nameKr = normalizeText(business?.name_kr)
+  const nameEn = normalizeText(business?.name_en)
+  const categoryMain = normalizeText(business?.category_main)
+  const categorySub = normalizeText(business?.category_sub)
+  const address = normalizeText(business?.address)
+  const city = normalizeText(business?.city)
+  const phone = normalizeText(business?.phone)
+  const metroArea = normalizeText(business?.metro_area)
 
-  const priorityFields = [fields.name_kr, fields.name_en, fields.category_main, fields.category_sub]
-  const secondaryFields = [fields.address, fields.city, fields.phone, fields.metro_area]
+  const strongText = [nameKr, nameEn, categoryMain, categorySub].join(' ')
+  const weakText = [address, city, phone, metroArea].join(' ')
 
   let score = 0
   let matchedTokens = 0
-  let priorityMatchedTokens = 0
+  let strongMatchedTokens = 0
 
-  if (fields.name_kr.includes(normalizedQuery)) score += 900
-  if (fields.name_en.includes(normalizedQuery)) score += 850
-  if (fields.category_main.includes(normalizedQuery)) score += 700
-  if (fields.category_sub.includes(normalizedQuery)) score += 650
-  if (joined.includes(normalizedQuery)) score += 260
-  if (compactQuery && compact.includes(compactQuery)) score += 220
+  if (nameKr === normalizedSearch || nameEn === normalizedSearch) score += 1000
+  if (nameKr.includes(normalizedSearch)) score += 450
+  if (nameEn.includes(normalizedSearch)) score += 420
+  if (categoryMain.includes(normalizedSearch)) score += 260
+  if (categorySub.includes(normalizedSearch)) score += 240
+  if (address.includes(normalizedSearch)) score += 90
+  if (city.includes(normalizedSearch)) score += 70
+  if (phone.includes(normalizedSearch)) score += 60
+  if (metroArea.includes(normalizedSearch)) score += 40
 
   for (const token of tokens) {
-    const compactToken = normalizeCompactSearchText(token)
-    if (!compactToken) continue
-
     let tokenMatched = false
-    let tokenPriorityMatched = false
+    let tokenStrongMatched = false
 
-    if (fields.name_kr.includes(token)) {
+    if (nameKr.includes(token)) {
       score += 220
       tokenMatched = true
-      tokenPriorityMatched = true
-    }
-    if (fields.name_en.includes(token)) {
+      tokenStrongMatched = true
+    } else if (nameEn.includes(token)) {
       score += 200
       tokenMatched = true
-      tokenPriorityMatched = true
-    }
-    if (fields.category_main.includes(token)) {
-      score += 150
+      tokenStrongMatched = true
+    } else if (categoryMain.includes(token)) {
+      score += 140
       tokenMatched = true
-      tokenPriorityMatched = true
-    }
-    if (fields.category_sub.includes(token)) {
+      tokenStrongMatched = true
+    } else if (categorySub.includes(token)) {
       score += 120
       tokenMatched = true
-      tokenPriorityMatched = true
-    }
-    if (fields.city.includes(token)) {
-      score += 45
+      tokenStrongMatched = true
+    } else if (address.includes(token)) {
+      score += 28
       tokenMatched = true
-    }
-    if (fields.metro_area.includes(token)) {
-      score += 35
+    } else if (city.includes(token)) {
+      score += 22
       tokenMatched = true
-    }
-    if (fields.address.includes(token)) {
-      score += 30
+    } else if (phone.includes(token)) {
+      score += 20
       tokenMatched = true
-    }
-    if (fields.phone.includes(token)) {
-      score += 25
-      tokenMatched = true
-    }
-
-    if (!tokenMatched && compact.includes(compactToken)) {
-      score += 30
+    } else if (metroArea.includes(token)) {
+      score += 16
       tokenMatched = true
     }
 
     if (tokenMatched) matchedTokens += 1
-    if (tokenPriorityMatched) priorityMatchedTokens += 1
+    if (tokenStrongMatched) strongMatchedTokens += 1
   }
 
-  const allTokensMatched = tokens.length > 0 && matchedTokens === tokens.length
+  if (matchedTokens === tokens.length) {
+    score += 180
+  } else if (matchedTokens >= Math.max(1, Math.ceil(tokens.length / 2))) {
+    score += 70
+  }
 
-  if (allTokensMatched) score += 260
-  if (tokens.length >= 2 && matchedTokens >= 2) score += 120
-  if (tokens.length >= 2 && priorityMatchedTokens >= 2) score += 180
-  if (tokens.length >= 3 && priorityMatchedTokens >= 2) score += 120
-  if (priorityFields.some(Boolean) && priorityFields.join(' ').includes(normalizedQuery)) score += 120
-  if (!priorityMatchedTokens && secondaryFields.some((value) => value.includes(normalizedQuery))) score -= 120
+  if (strongMatchedTokens === tokens.length) {
+    score += 240
+  } else if (strongMatchedTokens >= Math.max(1, Math.ceil(tokens.length / 2))) {
+    score += 110
+  }
 
-  const minimumMatchedTokens = tokens.length >= 3 ? 2 : 1
-  const hasStrongExactMatch =
-    fields.name_kr.includes(normalizedQuery) ||
-    fields.name_en.includes(normalizedQuery) ||
-    fields.category_main.includes(normalizedQuery) ||
-    fields.category_sub.includes(normalizedQuery)
+  if (strongText.includes(normalizedSearch)) {
+    score += 150
+  }
 
-  const passes =
-    hasStrongExactMatch ||
-    joined.includes(normalizedQuery) ||
-    (compactQuery && compact.includes(compactQuery)) ||
-    (matchedTokens >= minimumMatchedTokens && priorityMatchedTokens >= 1) ||
-    (tokens.length === 1 && matchedTokens >= 1)
+  if (strongMatchedTokens === 0 && matchedTokens > 0) {
+    score -= 80
+  }
 
-  return passes ? score : 0
+  if (strongMatchedTokens === 0 && weakText.includes(normalizedSearch)) {
+    score -= 40
+  }
+
+  return Math.max(score, 0)
 }
 
-function matchesBusinessSearch(row: any, rawQuery?: string) {
-  return getBusinessSearchScore(row, rawQuery) > 0
-}
+function matchesCategory(business: any, selectedCategory: string) {
+  if (!selectedCategory || selectedCategory === '전체') return true
 
-function compareBusinessValues(a: any, b: any, sort: SortType, rawQuery?: string) {
-  const query = normalizeSearchText(rawQuery)
-
-  if (query) {
-    const aScore = getBusinessSearchScore(a, rawQuery)
-    const bScore = getBusinessSearchScore(b, rawQuery)
-
-    if (aScore !== bScore) return bScore - aScore
-  }
-
-  const aVip = a?.is_vip ? 1 : 0
-  const bVip = b?.is_vip ? 1 : 0
-
-  if (aVip !== bVip) return bVip - aVip
-
-  if (sort === 'name_en') {
-    const aName = (a?.name_en || a?.name_kr || '').toString().toLowerCase()
-    const bName = (b?.name_en || b?.name_kr || '').toString().toLowerCase()
-
-    const byName = aName.localeCompare(bName)
-    if (byName !== 0) return byName
-  } else {
-    const aValue = Number(a?.[sort] || 0)
-    const bValue = Number(b?.[sort] || 0)
-
-    if (aValue !== bValue) return bValue - aValue
-  }
-
-  const aRating = Number(a?.rating || 0)
-  const bRating = Number(b?.rating || 0)
-  if (aRating !== bRating) return bRating - aRating
-
-  const aReviewCount = Number(a?.review_count || 0)
-  const bReviewCount = Number(b?.review_count || 0)
-  if (aReviewCount !== bReviewCount) return bReviewCount - aReviewCount
-
-  const aName = (a?.name_en || a?.name_kr || '').toString().toLowerCase()
-  const bName = (b?.name_en || b?.name_kr || '').toString().toLowerCase()
-  return aName.localeCompare(bName)
+  return (
+    normalizeText(business?.category_main) === normalizeText(selectedCategory) ||
+    normalizeText(business?.category_sub) === normalizeText(selectedCategory)
+  )
 }
 
 export default function Home() {
@@ -404,88 +368,84 @@ export default function Home() {
   }, [region, search, cat, sort, router])
 
   useEffect(() => {
-  const loadCounts = async () => {
-    try {
-      // 전체 업소 수
-      const { count: total, error: totalError } = await sb
-        .from('businesses')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true)
-        .eq('metro_area', region)
+    const loadCounts = async () => {
+      try {
+        const { count: total, error: totalError } = await sb
+          .from('businesses')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true)
+          .eq('metro_area', region)
 
-      if (!totalError && total !== null) {
-        setTotalCount(total)
-      }
+        if (!totalError && total !== null) {
+          setTotalCount(total)
+        }
 
-      // 카테고리별 개수
-      // cats가 아직 없으면 전체만 반영
-      if (!cats || cats.length === 0) {
-        setCounts({ 전체: total || 0 })
-        return
-      }
+        if (!cats || cats.length === 0) {
+          setCounts({ 전체: total || 0 })
+          return
+        }
 
-      const nextCounts: Record<string, number> = {
-        전체: total || 0,
-      }
+        const nextCounts: Record<string, number> = {
+          전체: total || 0,
+        }
 
-      const realCategories = cats.filter((c) => c.name !== '전체')
+        const realCategories = cats.filter((c) => c.name !== '전체')
 
-      const results = await Promise.all(
-        realCategories.map(async (category) => {
-          const { count, error } = await sb
-            .from('businesses')
-            .select('id', { count: 'exact', head: true })
-            .eq('is_active', true)
-            .eq('metro_area', region)
-            .eq('category_main', category.name)
+        const results = await Promise.all(
+          realCategories.map(async (category) => {
+            const { count, error } = await sb
+              .from('businesses')
+              .select('id', { count: 'exact', head: true })
+              .eq('is_active', true)
+              .eq('metro_area', region)
+              .eq('category_main', category.name)
 
-          return {
-            name: category.name,
-            count: !error && count !== null ? count : 0,
-          }
+            return {
+              name: category.name,
+              count: !error && count !== null ? count : 0,
+            }
+          })
+        )
+
+        results.forEach((item) => {
+          nextCounts[item.name] = item.count
         })
-      )
 
-      results.forEach((item) => {
-        nextCounts[item.name] = item.count
-      })
-
-      setCounts(nextCounts)
-    } catch (e) {
-      console.error('loadCounts error:', e)
+        setCounts(nextCounts)
+      } catch (e) {
+        console.error('loadCounts error:', e)
+      }
     }
-  }
 
-  loadCounts()
-}, [region, cats])
+    loadCounts()
+  }, [region, cats])
 
   const loadVipBusinesses = useCallback(async () => {
-  let q = sb
-    .from('businesses')
-    .select('*')
-    .eq('is_active', true)
-    .eq('approved', true)
-    .eq('metro_area', region)
-    .eq('is_vip', true)
+    let q = sb
+      .from('businesses')
+      .select('*')
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('metro_area', region)
+      .eq('is_vip', true)
 
-  // ✅ 카테고리 필터 추가
-  if (cat !== '전체') {
-    q = q.eq('category_main', cat)
-  }
+    if (cat !== '전체') {
+      q = q.eq('category_main', cat)
+    }
 
-  const { data, error } = await q
-    .order('rating', { ascending: false })
-    .order('review_count', { ascending: false })
-    .limit(6)
+    const { data, error } = await q
+      .order('rating', { ascending: false })
+      .order('review_count', { ascending: false })
+      .limit(6)
 
-  if (error) {
-    console.error(error)
-    setVipBiz([])
-    return
-  }
+    if (error) {
+      console.error(error)
+      setVipBiz([])
+      return
+    }
 
-  setVipBiz(data || [])
-}, [region, cat])
+    setVipBiz(data || [])
+  }, [region, cat])
 
   const loadCommunityPreview = useCallback(async () => {
     const { data, error } = await sb
@@ -536,15 +496,19 @@ export default function Home() {
   const load = useCallback(async () => {
     setLoading(true)
 
+    const normalizedSearch = normalizeText(search)
+    const hasSearch = normalizedSearch.length > 0
+
     let q = sb
       .from('businesses')
       .select('*')
       .eq('is_active', true)
       .eq('metro_area', region)
+      .order('is_vip', { ascending: false })
+      .order('rating', { ascending: false, nullsFirst: false })
+      .order('review_count', { ascending: false, nullsFirst: false })
 
-    if (cat !== '전체') q = q.eq('category_main', cat)
-
-    const { data, error } = await q.limit(500)
+    const { data, error } = await q.limit(hasSearch ? 300 : 200)
 
     if (error) {
       console.error('business load error:', error)
@@ -553,15 +517,56 @@ export default function Home() {
       return
     }
 
-    const filtered = (data || []).filter((row: any) =>
-      matchesBusinessSearch(row, search)
-    )
+    const sourceList = data || []
 
-    const sorted = [...filtered].sort((a: any, b: any) =>
-      compareBusinessValues(a, b, sort, search)
-    )
+    let filtered = sourceList.filter((business) => matchesCategory(business, cat))
 
-    setBiz(sorted.slice(0, 20))
+    if (hasSearch) {
+      filtered = filtered
+        .map((business) => ({
+          business,
+          score: getSearchScore(business, normalizedSearch),
+        }))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score
+
+          const aVip = a.business?.is_vip ? 1 : 0
+          const bVip = b.business?.is_vip ? 1 : 0
+          if (bVip !== aVip) return bVip - aVip
+
+          if (sort === 'review_count') {
+            const byReviewCount =
+              Number(b.business?.review_count || 0) - Number(a.business?.review_count || 0)
+            if (byReviewCount !== 0) return byReviewCount
+
+            const byRating =
+              Number(b.business?.rating || 0) - Number(a.business?.rating || 0)
+            if (byRating !== 0) return byRating
+          } else if (sort === 'name_en') {
+            const byName = getSortableName(a.business).localeCompare(
+              getSortableName(b.business),
+              'ko'
+            )
+            if (byName !== 0) return byName
+          } else {
+            const byRating =
+              Number(b.business?.rating || 0) - Number(a.business?.rating || 0)
+            if (byRating !== 0) return byRating
+
+            const byReviewCount =
+              Number(b.business?.review_count || 0) - Number(a.business?.review_count || 0)
+            if (byReviewCount !== 0) return byReviewCount
+          }
+
+          return getSortableName(a.business).localeCompare(getSortableName(b.business), 'ko')
+        })
+        .map((item) => item.business)
+    } else {
+      filtered = applyBusinessSort(filtered, sort)
+    }
+
+    setBiz(filtered.slice(0, 20))
     setLoading(false)
   }, [cat, search, sort, region])
 
@@ -763,19 +768,19 @@ export default function Home() {
 
   const regionLabel = REGIONS.find((r) => r.value === region)?.label || region
 
-const openBusiness = (b: any) => {
-  setSel(b)
-  loadReviews(b.id)
-  loadRelatedCommunityPosts(b.id)
-}
+  const openBusiness = (b: any) => {
+    setSel(b)
+    loadReviews(b.id)
+    loadRelatedCommunityPosts(b.id)
+  }
 
   const activeSections = useMemo(
-  () =>
-    sections
-      .filter((s) => s.is_enabled !== false)
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
-  [sections]
-)
+    () =>
+      sections
+        .filter((s) => s.is_enabled !== false)
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+    [sections]
+  )
 
   const sectionMap: Record<string, React.ReactNode> = {
     community_latest: (
@@ -815,12 +820,11 @@ const openBusiness = (b: any) => {
     ),
   }
 
-  // sections 활성화 목록
   const enabledSectionKeys = sections
     .filter((s) => s.is_enabled)
     .sort((a, b) => a.sort_order - b.sort_order)
 
-    return (
+  return (
     <div className="min-h-screen bg-slate-100 max-w-lg mx-auto">
       <div className="bg-white border-b border-slate-200 px-3 py-3 sticky top-[60px] z-20">
         <div className="flex gap-2">
@@ -873,24 +877,23 @@ const openBusiness = (b: any) => {
       ))}
 
       <HomeBusinessModal
-  sel={sel}
-  onClose={closeModal}
-  user={user}
-  reviews={reviews}
-  reviewLoading={reviewLoading}
-  reviewSaving={reviewSaving}
-  myReview={myReview}
-  reviewForm={reviewForm}
-  setReviewForm={setReviewForm}
-  relatedCommunityPosts={relatedCommunityPosts}
-  relatedPostsLoading={relatedPostsLoading}
-  claimLoading={claimLoading}
-  avgRating={avgRating}
-  onToggleReviewTag={toggleReviewTag}
-  onSaveReview={saveReview}
-  onRequestOwnerClaim={requestOwnerClaim}
-/>
+        sel={sel}
+        onClose={closeModal}
+        user={user}
+        reviews={reviews}
+        reviewLoading={reviewLoading}
+        reviewSaving={reviewSaving}
+        myReview={myReview}
+        reviewForm={reviewForm}
+        setReviewForm={setReviewForm}
+        relatedCommunityPosts={relatedCommunityPosts}
+        relatedPostsLoading={relatedPostsLoading}
+        claimLoading={claimLoading}
+        avgRating={avgRating}
+        onToggleReviewTag={toggleReviewTag}
+        onSaveReview={saveReview}
+        onRequestOwnerClaim={requestOwnerClaim}
+      />
     </div>
   )
 }
- 
