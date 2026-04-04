@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { FcGoogle } from 'react-icons/fc'
 
 const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -89,12 +88,12 @@ export default function LoginPage() {
 
               {/* Google */}
               <button
-                onClick={loginGoogle}
-                className="w-full h-[52px] flex items-center justify-center gap-3 rounded-full bg-gray-100 font-semibold mb-3"
-              >
-                <FcGoogle size={20} />
-                Continue with Google
-              </button>
+  onClick={loginGoogle}
+  className="w-full h-[52px] flex items-center justify-center gap-3 rounded-full bg-gray-100 font-semibold mb-3"
+>
+  <img src="/icons/google.svg" className="w-5 h-5" />
+  Continue with Google
+</button>
 
               {/* Kakao */}
               <button
