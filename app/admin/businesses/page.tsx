@@ -272,86 +272,8 @@ export default function AdminBusinessesPage() {
     } catch {}
   }, [tab, search, ok])
 
-  const loadList = useCallback(async (searchTerm?: string, tabOverride?: 'pending' | 'vip' | 'all' | 'categories' | 'trash', regionOverride?: string) => {
-    const currentTab = tabOverride ?? tab
+  const loadList = useCallback(
 
-    if (currentTab === 'categories') {
-      await loadCats()
-      return
-    }
-
-    setLoading(true)
-    setSelected(new Set())
-
-    let q =
-  tabOverride === 'trash' || tab === 'trash'
-    ? sb.from('businesses').select('*').eq('is_active', false)
-    : sb.from('businesses').select('*').eq('is_active', true)
-
-    if (currentTab === 'pending') q = q.eq('data_source', 'user_registered')
-    if (currentTab === 'vip') q = q.eq('is_vip', true)
-
-    const term = searchTerm !== undefined ? searchTerm : search
-
-    if (term.trim()) {
-      q = q.or(
-        [
-          `name_kr.ilike.%${term}%`,
-          `name_en.ilike.%${term}%`,
-          `category_main.ilike.%${term}%`,
-          `category_sub.ilike.%${term}%`,
-          `address.ilike.%${term}%`,
-          `phone.ilike.%${term}%`,
-          `metro_area.ilike.%${term}%`,
-          `city.ilike.%${term}%`,
-        ].join(',')
-      )
-    }
-
-    const currentRegion = regionOverride ?? region
-    if (currentRegion !== 'all') {
-      q = q.eq('metro_area', currentRegion)
-    }
-
-    const { data, error } = await q
-      let nextList = (data || []) as BusinessRow[]
-
-const term = (searchTerm !== undefined ? searchTerm : search)
-  .toLowerCase()
-  .trim()
-
-if (term) {
-  const terms = term.split(' ').filter(Boolean)
-
-  nextList = nextList.filter((b) => {
-    const text = [
-      b.name_kr,
-      b.name_en,
-      b.category_main,
-      b.category_sub,
-      b.address,
-      b.city,
-      b.phone,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-
-    return terms.some((t) => text.includes(t))
-  })
-}
-      .order('created_at', { ascending: false })
-      .limit(200)
-
-    if (error) {
-      setErrorMsg('업소 목록을 불러오지 못했습니다.')
-      setList([])
-    } else {
-      setList(nextList)
-    }
-
-    setLoading(false)
-  }, [tab, search, region])
 
   async function loadStats() {
     try {
