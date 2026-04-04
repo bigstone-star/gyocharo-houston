@@ -160,11 +160,11 @@ export default function AdminPage() {
 
   const quickMenus = [
     {
-  href: '/admin/users',
-  icon: '👥',
-  title: '회원 관리',
-  desc: '권한, 상태, 업소 연결 관리',
-},
+      href: '/admin/users',
+      icon: '👥',
+      title: '회원 관리',
+      desc: '권한, 상태, 업소 연결 관리',
+    },
     {
       href: '/admin/businesses',
       icon: '🏢',
@@ -196,17 +196,23 @@ export default function AdminPage() {
       desc: '업주가 보낸 수정 요청 승인/반려',
     },
     {
+      href: '/admin/home-sections',
+      icon: '🧩',
+      title: '홈 화면 구성 관리',
+      desc: '홈 화면 순서 / 노출 설정',
+    },
+    {
+      href: '/admin/settings',
+      icon: '🖼️',
+      title: '사이트 설정',
+      desc: '로고 업로드 및 기본 설정 관리',
+    },
+    {
       href: '/',
       icon: '🏠',
       title: '사이트 보기',
       desc: '실제 홈 화면으로 이동',
     },
-    {
-  href: '/admin/home-sections',
-  icon: '🧩',
-  title: '홈 화면 구성 관리',
-  desc: '홈 화면 순서 / 노출 설정',
-},
   ]
 
   const taskCards = [
@@ -257,6 +263,13 @@ export default function AdminPage() {
             className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
           >
             📢 배너
+          </a>
+
+          <a
+            href="/admin/settings"
+            className="text-white/70 text-[12px] border border-white/20 px-3 py-1.5 rounded-lg"
+          >
+            🖼️ 사이트 설정
           </a>
 
           <a
