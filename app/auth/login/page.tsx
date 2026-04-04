@@ -62,7 +62,7 @@ export default function LoginPage() {
         <div className="text-center mb-6">
           {!logoBroken ? (
             <img
-              src="/icons/logo.svg"
+              src="/icons/logo_black.svg"
               alt="KOINUS"
               className="h-10 mx-auto mb-3 object-contain"
               onError={() => setLogoBroken(true)}
