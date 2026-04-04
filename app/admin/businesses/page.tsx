@@ -17,6 +17,15 @@ const REGION_LABELS: Record<string, string> = {
   central_texas: 'Central TX',
 }
 
+
+const REGIONS = [
+  { value: 'all', label: '전체 지역' },
+  { value: 'houston', label: 'Houston' },
+  { value: 'dallas', label: 'Dallas' },
+  { value: 'fort_worth', label: 'Fort Worth' },
+  { value: 'central_texas', label: 'Central Texas' },
+]
+
 const STORAGE_KEY = 'admin_businesses_state'
 
 type Category = {
@@ -167,6 +176,7 @@ export default function AdminBusinessesPage() {
   const [savingCatId, setSavingCatId] = useState('')
 
   const [search, setSearch] = useState('')
+  const [region, setRegion] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkCat, setBulkCat] = useState('')
   const [bulkSubCat, setBulkSubCat] = useState('')
@@ -200,8 +210,9 @@ export default function AdminBusinessesPage() {
           return
         }
 
-        let savedTab: 'pending' | 'vip' | 'all' | 'categories' = 'all'
+        let savedTab: 'pending' | 'vip' | 'all' | 'categories' | 'trash' = 'all'
         let savedSearch = ''
+        let savedRegion = 'all'
 
         try {
           const saved = sessionStorage.getItem(STORAGE_KEY)
@@ -219,17 +230,21 @@ export default function AdminBusinessesPage() {
             if (typeof parsed.search === 'string') {
               savedSearch = parsed.search
             }
+            if (typeof parsed.region === 'string') {
+              savedRegion = parsed.region
+            }
           }
         } catch {}
 
         setTab(savedTab)
         setSearch(savedSearch)
+        setRegion(savedRegion)
         setOk(true)
 
         await Promise.all([
           loadStats(),
           loadCats(),
-          loadList(savedSearch, savedTab),
+          loadList(savedSearch, savedTab, savedRegion),
         ])
 
         setRestored(true)
@@ -251,12 +266,13 @@ export default function AdminBusinessesPage() {
         JSON.stringify({
           tab,
           search,
+          region,
         })
       )
     } catch {}
   }, [tab, search, ok])
 
-  const loadList = useCallback(async (searchTerm?: string, tabOverride?: 'pending' | 'vip' | 'all' | 'categories') => {
+  const loadList = useCallback(async (searchTerm?: string, tabOverride?: 'pending' | 'vip' | 'all' | 'categories' | 'trash', regionOverride?: string) => {
     const currentTab = tabOverride ?? tab
 
     if (currentTab === 'categories') {
@@ -292,6 +308,11 @@ export default function AdminBusinessesPage() {
       )
     }
 
+    const currentRegion = regionOverride ?? region
+    if (currentRegion !== 'all') {
+      q = q.eq('metro_area', currentRegion)
+    }
+
     const { data, error } = await q
       .order('created_at', { ascending: false })
       .limit(200)
@@ -304,7 +325,7 @@ export default function AdminBusinessesPage() {
     }
 
     setLoading(false)
-  }, [tab, search])
+  }, [tab, search, region])
 
   async function loadStats() {
     try {
@@ -360,7 +381,7 @@ export default function AdminBusinessesPage() {
 
   useEffect(() => {
     if (ok && restored) loadList()
-  }, [tab, ok, restored, loadList])
+  }, [tab, region, ok, restored, loadList])
 
   const handleSearch = () => loadList(search)
 
@@ -988,13 +1009,25 @@ const hardDeleteBusiness = async (id: string) => {
       ) : (
         <div className="px-4 space-y-2">
           <div className="bg-white rounded-xl border border-slate-200 p-3">
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <select
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="border border-slate-200 rounded-lg px-3 py-2 text-[13px] bg-white"
+              >
+                {REGIONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e: any) => e.key === 'Enter' && handleSearch()}
                 placeholder="업소명, 카테고리, 서브카테고리, 주소, 전화, 지역 검색..."
-                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-[13px]"
+                className="flex-1 min-w-[220px] border border-slate-200 rounded-lg px-3 py-2 text-[13px]"
               />
               <button
                 onClick={handleSearch}
