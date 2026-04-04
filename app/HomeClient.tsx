@@ -61,6 +61,115 @@ type HomeSection = {
   sort_order: number
 }
 
+
+function normalizeSearchText(value?: string | null) {
+  return (value || '')
+    .toString()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function normalizeCompactSearchText(value?: string | null) {
+  return normalizeSearchText(value).replace(/[\s\-_,./()]+/g, '')
+}
+
+function tokenizeSearchQuery(value?: string) {
+  const normalized = normalizeSearchText(value)
+
+  if (!normalized) return []
+
+  return Array.from(
+    new Set(
+      normalized
+        .split(' ')
+        .map((token) => token.trim())
+        .filter(Boolean)
+    )
+  )
+}
+
+function getBusinessSearchText(row: any) {
+  const values = [
+    row?.name_kr,
+    row?.name_en,
+    row?.category_main,
+    row?.category_sub,
+    row?.address,
+    row?.city,
+    row?.phone,
+    row?.metro_area,
+  ]
+
+  return {
+    joined: normalizeSearchText(values.filter(Boolean).join(' ')),
+    compact: normalizeCompactSearchText(values.filter(Boolean).join(' ')),
+  }
+}
+
+function matchesBusinessSearch(row: any, rawQuery?: string) {
+  const normalizedQuery = normalizeSearchText(rawQuery)
+  if (!normalizedQuery) return true
+
+  const tokens = tokenizeSearchQuery(rawQuery)
+  const compactQuery = normalizeCompactSearchText(rawQuery)
+  const { joined, compact } = getBusinessSearchText(row)
+
+  if (!joined) return false
+
+  if (joined.includes(normalizedQuery) || (compactQuery && compact.includes(compactQuery))) {
+    return true
+  }
+
+  if (tokens.length === 0) return true
+
+  let matched = 0
+
+  for (const token of tokens) {
+    const compactToken = normalizeCompactSearchText(token)
+    if (!compactToken) continue
+
+    if (joined.includes(token) || compact.includes(compactToken)) {
+      matched += 1
+    }
+  }
+
+  const minimumMatches = tokens.length >= 3 ? 2 : 1
+  return matched >= minimumMatches
+}
+
+function compareBusinessValues(a: any, b: any, sort: SortType) {
+  const aVip = a?.is_vip ? 1 : 0
+  const bVip = b?.is_vip ? 1 : 0
+
+  if (aVip !== bVip) return bVip - aVip
+
+  if (sort === 'name_en') {
+    const aName = (a?.name_en || a?.name_kr || '').toString().toLowerCase()
+    const bName = (b?.name_en || b?.name_kr || '').toString().toLowerCase()
+
+    const byName = aName.localeCompare(bName)
+    if (byName !== 0) return byName
+  } else {
+    const aValue = Number(a?.[sort] || 0)
+    const bValue = Number(b?.[sort] || 0)
+
+    if (aValue !== bValue) return bValue - aValue
+  }
+
+  const aRating = Number(a?.rating || 0)
+  const bRating = Number(b?.rating || 0)
+  if (aRating !== bRating) return bRating - aRating
+
+  const aReviewCount = Number(a?.review_count || 0)
+  const bReviewCount = Number(b?.review_count || 0)
+  if (aReviewCount !== bReviewCount) return bReviewCount - aReviewCount
+
+  const aName = (a?.name_en || a?.name_kr || '').toString().toLowerCase()
+  const bName = (b?.name_en || b?.name_kr || '').toString().toLowerCase()
+  return aName.localeCompare(bName)
+}
+
 export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -340,67 +449,36 @@ export default function Home() {
   )
 
   const load = useCallback(async () => {
-  setLoading(true)
+    setLoading(true)
 
-  let q = sb
-    .from('businesses')
-    .select('*')
-    .eq('is_active', true)
-    .eq('metro_area', region)
+    let q = sb
+      .from('businesses')
+      .select('*')
+      .eq('is_active', true)
+      .eq('metro_area', region)
 
-  if (cat !== '전체') {
-    q = q.eq('category_main', cat)
-  }
+    if (cat !== '전체') q = q.eq('category_main', cat)
 
-  q = q
-    .order('is_vip', { ascending: false })
-    .order('rating', { ascending: false, nullsFirst: false })
-    .order('review_count', { ascending: false, nullsFirst: false })
+    const { data, error } = await q.limit(500)
 
-  if (sort === 'name_en') {
-    q = q.order('name_en', { ascending: true })
-  }
+    if (error) {
+      console.error('business load error:', error)
+      setBiz([])
+      setLoading(false)
+      return
+    }
 
-  const { data, error } = await q.limit(300)
+    const filtered = (data || []).filter((row: any) =>
+      matchesBusinessSearch(row, search)
+    )
 
-  if (error) {
-    console.error('business load error:', error)
-    setBiz([])
+    const sorted = [...filtered].sort((a: any, b: any) =>
+      compareBusinessValues(a, b, sort)
+    )
+
+    setBiz(sorted.slice(0, 20))
     setLoading(false)
-    return
-  }
-
-  let nextBiz = data || []
-
-  const normalizedSearch = search.replace(/\s+/g, ' ').trim()
-
-  if (normalizedSearch) {
-    const terms = normalizedSearch
-      .split(' ')
-      .map((term) => term.trim().toLowerCase())
-      .filter(Boolean)
-
-    nextBiz = nextBiz.filter((b) => {
-      const haystack = [
-        b.name_kr,
-        b.name_en,
-        b.category_main,
-        b.category_sub,
-        b.address,
-        b.city,
-        b.phone,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-
-      return terms.every((term) => haystack.includes(term))
-    })
-  }
-
-  setBiz(nextBiz.slice(0, 20))
-  setLoading(false)
-}, [cat, search, sort, region])
+  }, [cat, search, sort, region])
 
   useEffect(() => {
     if (!hasInitializedFromUrl.current) return
