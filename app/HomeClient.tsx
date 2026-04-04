@@ -504,11 +504,21 @@ export default function Home() {
       .select('*')
       .eq('is_active', true)
       .eq('metro_area', region)
+
+    // 검색어가 없을 때는 기존처럼 상위 노출 중심으로 적게 가져오고,
+    // 검색어가 있을 때는 더 넉넉히 가져온 뒤 클라이언트에서 점수 정렬합니다.
+    // 이전 300개 제한 때문에 bank 같은 검색이 실제 존재해도 빠지는 경우가 있었습니다.
+    if (cat !== '전체') {
+      q = q.eq('category_main', cat)
+    }
+
+    q = q
       .order('is_vip', { ascending: false })
       .order('rating', { ascending: false, nullsFirst: false })
       .order('review_count', { ascending: false, nullsFirst: false })
 
-    const { data, error } = await q.limit(hasSearch ? 300 : 200)
+    const fetchLimit = hasSearch ? 1000 : 200
+    const { data, error } = await q.range(0, fetchLimit - 1)
 
     if (error) {
       console.error('business load error:', error)
@@ -519,7 +529,9 @@ export default function Home() {
 
     const sourceList = data || []
 
-    let filtered = sourceList.filter((business) => matchesCategory(business, cat))
+    let filtered = hasSearch
+      ? sourceList
+      : sourceList.filter((business) => matchesCategory(business, cat))
 
     if (hasSearch) {
       filtered = filtered
