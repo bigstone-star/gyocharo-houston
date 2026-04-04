@@ -81,7 +81,7 @@ export default function AdminSettingsPage() {
       const fileName = `logo-${Date.now()}.${ext}`
 
       const { error: uploadError } = await sb.storage
-        .from('site-assets')
+        .from('assets')
         .upload(fileName, file, {
           upsert: true,
           contentType: file.type || 'image/png',
@@ -93,7 +93,7 @@ export default function AdminSettingsPage() {
       }
 
       const { data: publicUrlData } = sb.storage
-        .from('site-assets')
+        .from('assets')
         .getPublicUrl(fileName)
 
       const nextUrl = publicUrlData.publicUrl
