@@ -64,7 +64,7 @@ export default function AdminSettingsPage() {
       }
 
       setLogoUrl(settingData?.value || '')
-    } catch (error) {
+    } catch {
       setErrorMsg('설정 화면을 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -82,10 +82,7 @@ export default function AdminSettingsPage() {
 
       const { error: uploadError } = await sb.storage
         .from('assets')
-        .upload(fileName, file, {
-          upsert: true,
-          contentType: file.type || 'image/png',
-        })
+        .upload(fileName, file)
 
       if (uploadError) {
         setErrorMsg(`업로드 실패: ${uploadError.message}`)
@@ -103,7 +100,6 @@ export default function AdminSettingsPage() {
         .upsert({
           key: 'logo_url',
           value: nextUrl,
-          updated_at: new Date().toISOString(),
         })
 
       if (upsertError) {
@@ -113,7 +109,7 @@ export default function AdminSettingsPage() {
 
       setLogoUrl(nextUrl)
       setMessage('로고가 저장되었습니다.')
-    } catch (error) {
+    } catch {
       setErrorMsg('로고 업로드 중 오류가 발생했습니다.')
     } finally {
       setSaving(false)
@@ -132,7 +128,6 @@ export default function AdminSettingsPage() {
     }
 
     await handleUpload(file)
-
     e.target.value = ''
   }
 
