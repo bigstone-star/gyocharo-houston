@@ -937,17 +937,6 @@ export default function Home() {
           <div className="flex-1 border border-slate-200 rounded-lg flex items-center px-3 gap-2 bg-white">
             <span className="text-slate-300">🔍</span>
             <input
-              ref={searchInputRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  searchInputRef.current?.blur()
-                }
-              }}
-              placeholder="업소명, 업종, 주소, 전화번호 검색"
-              className="w-full bg-transparent border-none outline-none text-[13px] text-slate-700 py-2.5 placeholder:text-slate-400"
-            />
           </div>
 
           <select
