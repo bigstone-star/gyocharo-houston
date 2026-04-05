@@ -601,69 +601,85 @@ export default function Home() {
   }, [region, search, cat, sort, router])
 
   useEffect(() => {
-    const loadCounts = async () => {
-      try {
-        let totalQuery = sb
-          .from('businesses')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_active', true)
-          .eq('metro_area', region)
+  let cancelled = false
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-        if (!isAdmin) {
-          totalQuery = totalQuery.eq('approved', true)
-        }
+  const loadCounts = async () => {
+    try {
+      let totalQuery = sb
+        .from('businesses')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('metro_area', region)
 
-        const { count: total, error: totalError } = await totalQuery
-
-        if (!totalError && total !== null) {
-          setTotalCount(total)
-        }
-
-        if (!cats || cats.length === 0) {
-          setCounts({ 전체: total || 0 })
-          return
-        }
-
-        const nextCounts: Record<string, number> = {
-          전체: total || 0,
-        }
-
-        const realCategories = cats.filter((c) => c.name !== '전체')
-
-        const results = await Promise.all(
-          realCategories.map(async (category) => {
-            let countQuery = sb
-              .from('businesses')
-              .select('id', { count: 'exact', head: true })
-              .eq('is_active', true)
-              .eq('metro_area', region)
-              .eq('category_main', category.name)
-
-            if (!isAdmin) {
-              countQuery = countQuery.eq('approved', true)
-            }
-
-            const { count, error } = await countQuery
-
-            return {
-              name: category.name,
-              count: !error && count !== null ? count : 0,
-            }
-          })
-        )
-
-        results.forEach((item) => {
-          nextCounts[item.name] = item.count
-        })
-
-        setCounts(nextCounts)
-      } catch (e) {
-        console.error('loadCounts error:', e)
+      if (!isAdmin) {
+        totalQuery = totalQuery.eq('approved', true)
       }
-    }
 
+      const { count: total, error: totalError } = await totalQuery
+
+      if (!cancelled && !totalError && total !== null) {
+        setTotalCount(total)
+      }
+
+      if (!cats || cats.length === 0) {
+        if (!cancelled) {
+          setCounts({ 전체: total || 0 })
+        }
+        return
+      }
+
+      const nextCounts: Record<string, number> = {
+        전체: total || 0,
+      }
+
+      const realCategories = cats.filter((c) => c.name !== '전체')
+
+      const results = await Promise.all(
+        realCategories.map(async (category) => {
+          let countQuery = sb
+            .from('businesses')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_active', true)
+            .eq('metro_area', region)
+            .eq('category_main', category.name)
+
+          if (!isAdmin) {
+            countQuery = countQuery.eq('approved', true)
+          }
+
+          const { count, error } = await countQuery
+
+          return {
+            name: category.name,
+            count: !error && count !== null ? count : 0,
+          }
+        })
+      )
+
+      if (cancelled) return
+
+      results.forEach((item) => {
+        nextCounts[item.name] = item.count
+      })
+
+      setCounts(nextCounts)
+    } catch (e) {
+      console.error('loadCounts error:', e)
+    }
+  }
+
+  // 첫 화면은 업소 리스트/VIP/기본 섹션을 먼저 보여주고,
+  // 카운트는 조금 늦게 로드해서 체감 속도를 높임
+  timeoutId = setTimeout(() => {
     loadCounts()
-  }, [region, cats, isAdmin])
+  }, 800)
+
+  return () => {
+    cancelled = true
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}, [region, cats, isAdmin])
 
   useEffect(() => {
     if (!hasInitializedFromUrl.current) return
