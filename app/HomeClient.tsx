@@ -296,7 +296,7 @@ export default function Home() {
     setSections(data as HomeSection[])
   }, [])
 
-  const loadVipBusinesses = useCallback(async () => {
+    const loadVipBusinesses = useCallback(async () => {
     let q = sb
       .from('businesses')
       .select('*')
@@ -305,7 +305,9 @@ export default function Home() {
       .eq('is_vip', true)
 
     if (!isAdmin) {
-      q = q.eq('approved', true)
+      q = q
+        .eq('approved', true)
+        .neq('source', 'Google Places API (New)')
     }
 
     if (cat !== '전체') {
@@ -372,7 +374,7 @@ export default function Home() {
     [region]
   )
 
-  const load = useCallback(async () => {
+    const load = useCallback(async () => {
     setLoading(true)
 
     const normalizedSearch = normalizeText(search)
@@ -385,7 +387,9 @@ export default function Home() {
       .eq('metro_area', region)
 
     if (!isAdmin) {
-      q = q.eq('approved', true)
+      q = q
+        .eq('approved', true)
+        .neq('source', 'Google Places API (New)')
     }
 
     if (cat !== '전체') {
@@ -613,7 +617,9 @@ export default function Home() {
         .eq('metro_area', region)
 
       if (!isAdmin) {
-        totalQuery = totalQuery.eq('approved', true)
+        totalQuery = totalQuery
+          .eq('approved', true)
+          .neq('source', 'Google Places API (New)')
       }
 
       const { count: total, error: totalError } = await totalQuery
@@ -645,7 +651,9 @@ export default function Home() {
             .eq('category_main', category.name)
 
           if (!isAdmin) {
-            countQuery = countQuery.eq('approved', true)
+            countQuery = countQuery
+                .eq('approved', true)
+                .neq('source', 'Google Places API (New)')
           }
 
           const { count, error } = await countQuery
