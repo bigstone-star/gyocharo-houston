@@ -221,7 +221,7 @@ function matchesCategory(business: any, selectedCategory: string) {
 export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const hasInitializedFromUrl = useRef(false)
+  const [isUrlReady, setIsUrlReady] = useState(false)
   const hasWrittenUrl = useRef(false)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -599,7 +599,7 @@ export default function Home() {
       setSort(urlSort)
     }
 
-    hasInitializedFromUrl.current = true
+    setIsUrlReady(true)
   }, [searchParams])
 
   useEffect(() => {
@@ -633,11 +633,12 @@ export default function Home() {
   }, [region, search, cat, sort, router])
 
   useEffect(() => {
-    if (!hasInitializedFromUrl.current) return
-    loadCommunityPreview()
-    loadVipBusinesses()
-    load()
-  }, [loadCommunityPreview, loadVipBusinesses, load])
+  if (!isUrlReady) return
+
+  loadCommunityPreview()
+  loadVipBusinesses()
+  load()
+}, [isUrlReady, loadCommunityPreview, loadVipBusinesses, load])
 
   const loadReviews = useCallback(
     async (businessId: string) => {
