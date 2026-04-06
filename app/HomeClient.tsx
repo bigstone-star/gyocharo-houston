@@ -60,6 +60,14 @@ type HomeSection = {
   sort_order: number
 }
 
+
+const DEFAULT_HOME_SECTIONS: HomeSection[] = [
+  { id: '1', section_key: 'community_latest', section_label: '커뮤니티 최신글', is_enabled: true, sort_order: 1 },
+  { id: '2', section_key: 'category_grid', section_label: '업소 카테고리', is_enabled: true, sort_order: 2 },
+  { id: '3', section_key: 'vip_businesses', section_label: '지역 추천업소', is_enabled: true, sort_order: 3 },
+  { id: '4', section_key: 'business_list', section_label: '일반 업소 리스트', is_enabled: true, sort_order: 4 },
+]
+
 function normalizeText(value: any) {
   return String(value || '')
     .toLowerCase()
@@ -225,7 +233,7 @@ export default function Home() {
   const hasWrittenUrl = useRef(false)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
 
-  const [sections, setSections] = useState<HomeSection[]>([])
+  const [sections, setSections] = useState<HomeSection[]>(DEFAULT_HOME_SECTIONS)
   const [biz, setBiz] = useState<any[]>([])
   const [vipBiz, setVipBiz] = useState<any[]>([])
   const [communityPosts, setCommunityPosts] = useState<CommunityPreviewPost[]>([])
@@ -290,12 +298,7 @@ export default function Home() {
       .order('sort_order', { ascending: true })
 
     if (error || !data || data.length === 0) {
-      setSections([
-        { id: '1', section_key: 'community_latest', section_label: '커뮤니티 최신글', is_enabled: true, sort_order: 1 },
-        { id: '2', section_key: 'category_grid', section_label: '업소 카테고리', is_enabled: true, sort_order: 2 },
-        { id: '3', section_key: 'vip_businesses', section_label: '지역 추천업소', is_enabled: true, sort_order: 3 },
-        { id: '4', section_key: 'business_list', section_label: '일반 업소 리스트', is_enabled: true, sort_order: 4 },
-      ])
+      setSections(DEFAULT_HOME_SECTIONS)
       return
     }
 
@@ -944,7 +947,7 @@ export default function Home() {
         ) : null}
       </div>
 
-      {enabledSectionKeys.map((section) => (
+      {(enabledSectionKeys.length > 0 ? enabledSectionKeys : DEFAULT_HOME_SECTIONS).map((section) => (
         <div key={section.section_key}>
           {sectionMap[section.section_key]}
         </div>
