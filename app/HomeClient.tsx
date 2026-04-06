@@ -29,6 +29,9 @@ const REGIONS = [
   { value: 'central_texas', label: 'Central Texas' },
 ]
 
+const INITIAL_BUSINESS_LOAD = 10
+const SEARCH_FETCH_LIMIT = 1000
+
 type Category = {
   id: string
   name: string
@@ -234,11 +237,14 @@ export default function Home() {
   const [sort, setSort] = useState<SortType>('rating')
   const [sel, setSel] = useState<any>(null)
   const [favs, setFavs] = useState<string[]>([])
-  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [counts] = useState<Record<string, number>>({})
   const [user, setUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [cats, setCats] = useState<Category[]>([])
-  const [totalCount, setTotalCount] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(INITIAL_BUSINESS_LOAD)
+  const [hasMore, setHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [searchResultCount, setSearchResultCount] = useState(0)
   const [region, setRegion] = useState('houston')
   const [approvalSavingId, setApprovalSavingId] = useState<string | null>(null)
 
@@ -374,11 +380,15 @@ export default function Home() {
     [region]
   )
 
-    const load = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
 
     const normalizedSearch = normalizeText(search)
     const hasSearch = normalizedSearch.length > 0
+
+    if (!hasSearch) {
+      setSearchResultCount(0)
+    }
 
     let q = sb
       .from('businesses')
@@ -401,12 +411,12 @@ export default function Home() {
       .order('rating', { ascending: false, nullsFirst: false })
       .order('review_count', { ascending: false, nullsFirst: false })
 
-    const fetchLimit = hasSearch ? 1000 : 200
-    const { data, error } = await q.range(0, fetchLimit - 1)
+    const { data, error } = await q.range(0, (hasSearch ? SEARCH_FETCH_LIMIT : INITIAL_BUSINESS_LOAD) - 1)
 
     if (error) {
       console.error('business load error:', error)
       setBiz([])
+      setHasMore(false)
       setLoading(false)
       return
     }
@@ -458,13 +468,31 @@ export default function Home() {
           return getSortableName(a.business).localeCompare(getSortableName(b.business), 'ko')
         })
         .map((item) => item.business)
+
+      setSearchResultCount(filtered.length)
     } else {
       filtered = applyBusinessSort(filtered, sort)
     }
 
-    setBiz(filtered.slice(0, 20))
+    setBiz(filtered)
+    setVisibleCount(INITIAL_BUSINESS_LOAD)
+    setHasMore(filtered.length > INITIAL_BUSINESS_LOAD)
     setLoading(false)
   }, [cat, search, sort, region, isAdmin])
+
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return
+
+    setIsLoadingMore(true)
+    setVisibleCount((prev) => {
+      const next = prev + INITIAL_BUSINESS_LOAD
+      if (next >= biz.length) {
+        setHasMore(false)
+      }
+      return next
+    })
+    setIsLoadingMore(false)
+  }, [biz.length, hasMore, isLoadingMore])
 
   const toggleApprovedFromHome = useCallback(
     async (business: any) => {
@@ -603,91 +631,6 @@ export default function Home() {
 
     router.replace(nextUrl, { scroll: false })
   }, [region, search, cat, sort, router])
-
-  useEffect(() => {
-  let cancelled = false
-  let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-  const loadCounts = async () => {
-    try {
-      let totalQuery = sb
-        .from('businesses')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true)
-        .eq('metro_area', region)
-
-      if (!isAdmin) {
-        totalQuery = totalQuery
-          .eq('approved', true)
-          .neq('source', 'Google Places API (New)')
-      }
-
-      const { count: total, error: totalError } = await totalQuery
-
-      if (!cancelled && !totalError && total !== null) {
-        setTotalCount(total)
-      }
-
-      if (!cats || cats.length === 0) {
-        if (!cancelled) {
-          setCounts({ 전체: total || 0 })
-        }
-        return
-      }
-
-      const nextCounts: Record<string, number> = {
-        전체: total || 0,
-      }
-
-      const realCategories = cats.filter((c) => c.name !== '전체')
-
-      const results = await Promise.all(
-        realCategories.map(async (category) => {
-          let countQuery = sb
-            .from('businesses')
-            .select('id', { count: 'exact', head: true })
-            .eq('is_active', true)
-            .eq('metro_area', region)
-            .eq('category_main', category.name)
-
-          if (!isAdmin) {
-            countQuery = countQuery
-                .eq('approved', true)
-                .neq('source', 'Google Places API (New)')
-          }
-
-          const { count, error } = await countQuery
-
-          return {
-            name: category.name,
-            count: !error && count !== null ? count : 0,
-          }
-        })
-      )
-
-      if (cancelled) return
-
-      results.forEach((item) => {
-        nextCounts[item.name] = item.count
-      })
-
-      setCounts(nextCounts)
-    } catch (e) {
-      console.error('loadCounts error:', e)
-    }
-  }
-
-  // 첫 화면은 업소 리스트/VIP/기본 섹션을 먼저 보여주고,
-  // 카운트는 조금 늦게 로드해서 체감 속도를 높임
-  timeoutId = setTimeout(() => {
-    loadCounts()
-  }, 800)
-
-  return () => {
-    cancelled = true
-    if (timeoutId) clearTimeout(timeoutId)
-  }
-}, [region, cats, isAdmin])
 
   useEffect(() => {
     if (!hasInitializedFromUrl.current) return
@@ -920,7 +863,7 @@ export default function Home() {
           </div>
         ) : (
           <HomeBusinessList
-            biz={biz}
+            biz={biz.slice(0, visibleCount)}
             cats={cats}
             favs={favs}
             onToggleFav={toggleFav}
@@ -928,6 +871,9 @@ export default function Home() {
             isAdmin={isAdmin}
             approvalSavingId={approvalSavingId}
             onToggleApproved={toggleApprovedFromHome}
+            hasMore={hasMore}
+            onLoadMore={handleLoadMore}
+            isLoadingMore={isLoadingMore}
           />
         )}
       </div>
@@ -996,9 +942,11 @@ export default function Home() {
           </select>
         </div>
 
-        <div className="text-[11px] text-slate-400 mt-2">
-          총 {totalCount}개 업소
-        </div>
+        {search.trim() ? (
+          <div className="text-[11px] text-slate-400 mt-2">
+            검색 결과 {searchResultCount}개
+          </div>
+        ) : null}
       </div>
 
       {enabledSectionKeys.map((section) => (
